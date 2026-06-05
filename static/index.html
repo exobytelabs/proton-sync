@@ -1,0 +1,2437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proton Sync</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+:root {
+  --clr-accent: #6d4aff;
+  --clr-accent-a: rgba(109,74,255,.12);
+  --clr-accent-b: rgba(109,74,255,.06);
+  --clr-success: #2fb344;
+  --clr-success-a: rgba(47,179,68,.12);
+  --clr-danger: #e03131;
+  --clr-danger-a: rgba(224,49,49,.12);
+  --clr-info: #20a8c4;
+  --clr-warn: #f59f00;
+  --bg-page: #13162a;
+  --bg-sb: #0e1122;
+  --bg-card: #1b1e34;
+  --bg-card2: #21243c;
+  --bg-input: #252840;
+  --bg-hover: rgba(255,255,255,.04);
+  --bg-active: rgba(109,74,255,.10);
+  --bdr: rgba(255,255,255,.07);
+  --bdr-s: rgba(255,255,255,.12);
+  --clr-text: #d2d6f0;
+  --clr-text2: #7a82a8;
+  --r: 8px;
+  --rl: 12px;
+  --sb-w: 240px;
+  --sb-col: 60px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { color-scheme: dark; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px; line-height: 1.5;
+  background: var(--bg-page); color: var(--clr-text);
+  overflow: hidden;
+}
+button, input, select { font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
+
+/* ── Login ── */
+#loginScreen {
+  min-height: 100vh; display: none;
+  align-items: center; justify-content: center;
+  background: var(--bg-page); padding: 2rem;
+}
+#loginScreen.visible { display: flex; }
+.login-card {
+  width: 100%; max-width: 380px;
+  background: var(--bg-card); border: 1px solid var(--bdr);
+  border-radius: var(--rl); padding: 2rem;
+}
+.login-brand { text-align: center; margin-bottom: 1.5rem; }
+.login-brand-icon { width: 40px; height: 40px; display: block; margin: 0 auto; }
+.login-brand h1 { font-size: 1.5rem; margin-top: .5rem; }
+.login-brand h1 span { color: var(--clr-accent); }
+.login-brand p { color: var(--clr-text2); font-size: .875rem; margin-top: .25rem; }
+
+/* ── App shell ── */
+#appRoot { display: flex; height: 100vh; }
+#appRoot.hidden { display: none !important; }
+
+.sidebar {
+  width: var(--sb-w); flex-shrink: 0;
+  background: var(--bg-sb); border-right: 1px solid var(--bdr);
+  display: flex; flex-direction: column;
+  transition: width .2s ease; overflow: hidden;
+}
+.sidebar.collapsed { width: var(--sb-col); }
+.sidebar.collapsed .sb-label,
+.sidebar.collapsed .sb-group,
+.sidebar.collapsed .sb-brand-text,
+.sidebar.collapsed .sb-user-info { display: none; }
+.sidebar.collapsed .sb-brand { justify-content: center; padding: 1rem .5rem; }
+.sidebar.collapsed .nav-link { justify-content: center; padding: .65rem; }
+.sidebar.collapsed .sb-footer { flex-direction: column; gap: .5rem; padding: .75rem .5rem; }
+
+.sb-brand {
+  display: flex; align-items: center; gap: .6rem;
+  padding: 1.1rem 1rem; border-bottom: 1px solid var(--bdr);
+  font-weight: 600; font-size: .95rem; white-space: nowrap;
+}
+.sb-brand-icon { width: 20px; height: 20px; flex-shrink: 0; display: block; }
+
+.sb-nav { flex: 1; overflow-y: auto; padding: .75rem .5rem; }
+.sb-group {
+  font-size: .65rem; font-weight: 600; letter-spacing: .08em;
+  color: var(--clr-text2); padding: .75rem .75rem .35rem; text-transform: uppercase;
+}
+.nav-link {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .55rem .75rem; border-radius: var(--r);
+  color: var(--clr-text2); cursor: pointer; border: none;
+  background: none; width: 100%; text-align: left;
+  transition: background .15s, color .15s; white-space: nowrap;
+}
+.nav-link i { font-size: 1.1rem; flex-shrink: 0; }
+.nav-link:hover { background: var(--bg-hover); color: var(--clr-text); }
+.nav-item.active .nav-link {
+  background: var(--bg-active); color: var(--clr-text);
+}
+
+.sb-footer {
+  border-top: 1px solid var(--bdr); padding: .75rem 1rem;
+  display: flex; align-items: center; gap: .5rem;
+}
+.sb-user { display: flex; align-items: center; gap: .5rem; flex: 1; min-width: 0; }
+.sb-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--clr-accent-a); color: var(--clr-accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: .8rem; flex-shrink: 0;
+}
+.sb-user-name { font-size: .85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-user-status { font-size: .75rem; color: var(--clr-text2); display: flex; align-items: center; gap: .35rem; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: var(--r);
+  border: 1px solid var(--bdr); background: transparent;
+  color: var(--clr-text2); cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background .15s, color .15s;
+}
+.icon-btn:hover { background: var(--bg-hover); color: var(--clr-text); }
+
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.page-scroll { flex: 1; overflow-y: auto; padding: 1.75rem 2rem; }
+
+.app-page { display: none; }
+.app-page.active { display: block; }
+
+.page-hd {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;
+}
+.page-title { font-size: 1.5rem; font-weight: 600; }
+.page-sub { color: var(--clr-text2); font-size: .875rem; margin-top: .2rem; }
+.page-actions { display: flex; gap: .5rem; flex-shrink: 0; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .5rem 1rem; border-radius: var(--r);
+  font-size: .875rem; font-weight: 500; cursor: pointer;
+  border: 1px solid transparent; transition: background .15s, border-color .15s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--clr-accent); color: #fff; border-color: var(--clr-accent); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ghost { background: transparent; border-color: var(--bdr-s); color: var(--clr-text); }
+.btn-ghost:hover { background: var(--bg-hover); }
+.btn-danger-ghost { background: transparent; border-color: rgba(224,49,49,.35); color: var(--clr-danger); }
+.btn-danger-ghost:hover { background: var(--clr-danger-a); }
+.btn-sm { padding: .35rem .7rem; font-size: .8rem; }
+.btn-icon { width: 32px; height: 32px; padding: 0; justify-content: center; }
+
+/* ── Cards ── */
+.card {
+  background: var(--bg-card); border: 1px solid var(--bdr);
+  border-radius: var(--rl); overflow: hidden;
+}
+.card-hd {
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--bdr);
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+}
+.card-title { font-weight: 600; font-size: .95rem; }
+.card-body { padding: 1.25rem; }
+.card-meta { font-size: .8rem; color: var(--clr-text2); }
+
+/* ── Stats ── */
+.stat-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1rem; margin-bottom: 1.5rem;
+}
+.charts-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+}
+.chart-panel {
+  background: var(--bg-card2); border: 1px solid var(--bdr);
+  border-radius: var(--rl); padding: 1rem 1rem .75rem;
+}
+.chart-title {
+  font-size: .8rem; color: var(--clr-text2); margin-bottom: .75rem;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.chart-wrap { position: relative; height: 220px; }
+.chart-empty {
+  height: 220px; display: flex; align-items: center; justify-content: center;
+  color: var(--clr-text2); font-size: .85rem;
+}
+@media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+.stat-grid-summary { grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem; }
+#page-stats .card { margin-bottom: 1.5rem; }
+#page-stats .card:last-child { margin-bottom: 0; }
+@media (max-width: 1100px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } .stat-grid-summary { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .stat-grid-summary { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .stat-grid { grid-template-columns: 1fr; } }
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--bdr);
+  border-radius: var(--rl); padding: 1.1rem 1.25rem;
+  display: flex; gap: .85rem; align-items: flex-start;
+}
+.stat-icon {
+  width: 40px; height: 40px; border-radius: var(--r);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; flex-shrink: 0;
+}
+.stat-icon.success { background: var(--clr-success-a); color: var(--clr-success); }
+.stat-icon.accent  { background: var(--clr-accent-a); color: var(--clr-accent); }
+.stat-icon.info    { background: rgba(32,168,196,.12); color: var(--clr-info); }
+.stat-icon.danger  { background: var(--clr-danger-a); color: var(--clr-danger); }
+.stat-label { font-size: .75rem; color: var(--clr-text2); text-transform: uppercase; letter-spacing: .04em; }
+.stat-value { font-size: 1.35rem; font-weight: 600; margin-top: .1rem; }
+.stat-value.success { color: var(--clr-success); }
+.stat-sub { font-size: .8rem; color: var(--clr-text2); margin-top: .15rem; }
+
+/* ── Alerts ── */
+.alert {
+  padding: .75rem 1rem; border-radius: var(--r);
+  border: 1px solid var(--bdr); margin-bottom: 1rem;
+  display: flex; align-items: flex-start; gap: .65rem; font-size: .875rem;
+  line-height: 1.5;
+}
+.alert > i { flex-shrink: 0; margin-top: .15rem; font-size: 1rem; }
+.alert-body { flex: 1; min-width: 0; }
+.alert-warn  { background: rgba(245,159,0,.08); border-color: rgba(245,159,0,.25); color: #fbbf24; }
+.alert-info  { background: rgba(32,168,196,.08); border-color: rgba(32,168,196,.25); color: var(--clr-info); }
+.alert-ok    { background: var(--clr-success-a); border-color: rgba(47,179,68,.25); color: var(--clr-success); }
+.sync-live-card {
+  background: var(--bg-card); border: 1px solid rgba(109,74,255,.3);
+  border-radius: var(--rl); margin-bottom: 1rem; overflow: hidden;
+}
+.sync-live-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .75rem; padding: .75rem 1rem; cursor: pointer; user-select: none;
+}
+.sync-live-hd:hover { background: var(--bg-hover); }
+.sync-live-summary { color: var(--clr-text2); font-size: .85rem; margin-left: .35rem; }
+.sync-live-body {
+  border-top: 1px solid var(--bdr); padding: 1rem;
+  background: var(--bg-card2);
+}
+.sync-live-body.hidden { display: none; }
+.sync-job-list { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .85rem; }
+.sync-job-item {
+  display: flex; align-items: center; gap: .5rem; font-size: .875rem;
+  padding: .4rem .6rem; background: var(--bg-card); border-radius: var(--r);
+}
+.sync-live-logs {
+  font-family: ui-monospace, monospace; font-size: .75rem; line-height: 1.65;
+  max-height: 180px; overflow-y: auto; color: var(--clr-text2);
+  background: var(--bg-card); border-radius: var(--r); padding: .65rem .75rem;
+}
+
+/* ── Table ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+th {
+  text-align: left; padding: .65rem 1.25rem;
+  font-size: .7rem; font-weight: 600; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--clr-text2);
+  border-bottom: 1px solid var(--bdr);
+}
+td { padding: .85rem 1.25rem; border-bottom: 1px solid var(--bdr); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+tr:hover td { background: var(--bg-hover); }
+.path-pill {
+  display: inline-block; padding: .15rem .45rem;
+  background: var(--bg-input); border-radius: 4px;
+  font-family: ui-monospace, monospace; font-size: .8rem;
+  color: var(--clr-text2);
+}
+.badge {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding: .2rem .55rem; border-radius: 20px; font-size: .75rem; font-weight: 500;
+}
+.badge-success { background: var(--clr-success-a); color: var(--clr-success); }
+.badge-danger  { background: var(--clr-danger-a); color: var(--clr-danger); }
+.badge-muted   { background: var(--bg-input); color: var(--clr-text2); }
+
+/* ── Forms ── */
+.form-group { margin-bottom: 1rem; }
+.form-label { display: block; font-size: .8rem; font-weight: 500; margin-bottom: .4rem; color: var(--clr-text2); }
+.form-hint { font-size: .75rem; color: var(--clr-text2); margin-top: .3rem; }
+.form-control {
+  width: 100%; padding: .55rem .75rem;
+  background: var(--bg-input); border: 1px solid var(--bdr);
+  border-radius: var(--r); outline: none; transition: border-color .15s;
+}
+.form-control:focus { border-color: var(--clr-accent); }
+.input-prefix {
+  display: flex; align-items: stretch;
+  background: var(--bg-input); border: 1px solid var(--bdr); border-radius: var(--r); overflow: hidden;
+}
+.input-prefix span {
+  padding: .55rem .75rem; background: var(--bg-card2);
+  border-right: 1px solid var(--bdr); color: var(--clr-text2); font-size: .85rem; white-space: nowrap;
+}
+.input-prefix input { border: 0; background: transparent; flex: 1; padding: .55rem .75rem; outline: none; }
+select.form-control { cursor: pointer; }
+select.form-control option { background: var(--bg-card); color: var(--clr-text); }
+
+/* ── Auth page ── */
+.auth-connected { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.auth-shield {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--clr-success-a); color: var(--clr-success);
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;
+}
+.auth-meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.25rem 0; }
+.auth-meta-2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 700px) { .auth-meta { grid-template-columns: 1fr; } }
+.auth-meta-item label { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; color: var(--clr-text2); display: block; margin-bottom: .35rem; }
+.info-card {
+  display: flex; gap: .85rem; padding: 1rem 1.25rem;
+  background: var(--clr-accent-b); border: 1px solid rgba(109,74,255,.2);
+  border-radius: var(--r); margin-top: 1rem; font-size: .875rem; color: var(--clr-text2);
+}
+.info-card i { color: var(--clr-accent); font-size: 1.1rem; flex-shrink: 0; margin-top: .1rem; }
+.auth-msg { padding: .5rem .75rem; border-radius: var(--r); margin-top: .5rem; font-size: .875rem; }
+.auth-msg.info    { background: rgba(32,168,196,.1); color: var(--clr-info); }
+.auth-msg.success { background: var(--clr-success-a); color: var(--clr-success); }
+.auth-msg.error   { background: var(--clr-danger-a); color: var(--clr-danger); }
+
+/* ── Settings page ── */
+.settings-stack {
+  display: flex; flex-direction: column; gap: 1.5rem;
+  max-width: 52rem;
+}
+.settings-stack .card { margin-bottom: 0; }
+.settings-stack .card-body > *:last-child { margin-bottom: 0; }
+.auth-status-hd {
+  display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between;
+}
+.auth-status-hd-main {
+  display: flex; gap: 1rem; align-items: flex-start; flex: 1; min-width: 0;
+}
+.auth-status-hd .auth-shield { margin-top: .15rem; flex-shrink: 0; }
+.auth-status-badge { flex-shrink: 0; margin-top: .15rem; }
+.auth-status-title { font-weight: 600; font-size: 1rem; line-height: 1.35; }
+.auth-status-sub { color: var(--clr-text2); font-size: .875rem; margin-top: .35rem; line-height: 1.5; }
+.settings-stack .auth-meta {
+  margin: 1.25rem 0 0; padding-top: .25rem;
+}
+.auth-actions {
+  display: flex; gap: .65rem; flex-wrap: wrap;
+  margin-top: 1.25rem; padding-top: 1.25rem;
+  border-top: 1px solid var(--bdr);
+}
+.settings-stack .info-card { margin-top: 1.25rem; }
+.settings-stack .alert { margin-bottom: 1.25rem; }
+.settings-stack .form-group:last-of-type { margin-bottom: 1.25rem; }
+.config-backup-card .card-hd .card-title {
+  display: inline-flex; align-items: center; gap: .5rem;
+}
+.config-backup-card .card-hd .card-title i { color: var(--clr-accent); font-size: 1.05rem; }
+.config-backup-body { padding: 1.25rem; }
+.config-backup-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+}
+@media (max-width: 700px) { .config-backup-grid { grid-template-columns: 1fr; } }
+.config-backup-panel {
+  background: var(--bg-card2); border: 1px solid var(--bdr);
+  border-radius: var(--r); padding: 1.1rem 1.15rem;
+  display: flex; flex-direction: column; gap: 1rem;
+}
+.config-backup-panel-hd {
+  display: flex; gap: .75rem; align-items: flex-start;
+}
+.config-backup-panel-icon {
+  width: 36px; height: 36px; border-radius: var(--r); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.config-backup-panel-icon.export { background: var(--clr-accent-a); color: var(--clr-accent); }
+.config-backup-panel-icon.import { background: rgba(32,168,196,.12); color: var(--clr-info); }
+.config-backup-panel-title { font-weight: 600; font-size: .9rem; }
+.config-backup-panel-sub {
+  color: var(--clr-text2); font-size: .8rem; line-height: 1.45; margin-top: .2rem;
+}
+.config-backup-panel-actions {
+  display: flex; flex-direction: column; gap: .6rem; margin-top: auto;
+}
+.config-file-picker {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+}
+.config-file-picker input[type="file"] {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); border: 0;
+}
+.config-file-label {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .4rem .75rem; border-radius: var(--r);
+  background: var(--bg-input); border: 1px solid var(--bdr-s);
+  font-size: .8rem; color: var(--clr-text); cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.config-file-label:hover { background: var(--bg-hover); border-color: var(--clr-accent); }
+.config-file-name {
+  font-size: .78rem; color: var(--clr-text2);
+  font-family: ui-monospace, monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 100%;
+}
+.config-backup-tip {
+  display: flex; gap: .65rem; align-items: flex-start;
+  margin-top: 1rem; padding: .85rem 1rem;
+  background: var(--clr-accent-b); border: 1px solid rgba(109,74,255,.18);
+  border-radius: var(--r); font-size: .8rem; line-height: 1.5; color: var(--clr-text2);
+}
+.config-backup-tip i { color: var(--clr-accent); font-size: 1rem; flex-shrink: 0; margin-top: .1rem; }
+.config-backup-tip code {
+  padding: .1rem .35rem; background: var(--bg-input);
+  border-radius: 4px; font-size: .75rem; color: var(--clr-text);
+}
+
+/* ── Backup paths two-col ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+.browse-card {
+  display: flex; flex-direction: column; min-height: 28rem;
+}
+.browse-card-hd {
+  align-items: center; gap: .75rem; flex-wrap: nowrap;
+}
+.browse-hd-left {
+  display: flex; align-items: center; gap: .5rem;
+  flex: 1; min-width: 0;
+}
+.browse-hd-title { min-width: 0; }
+.browse-current-path {
+  display: block; font-size: .95rem; font-weight: 600; color: var(--clr-text);
+  font-family: ui-monospace, monospace; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.browse-hd-right {
+  display: flex; align-items: center; gap: .65rem; flex-shrink: 0;
+}
+.browse-card-body {
+  flex: 1; padding: 0; display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+}
+#fileBrowser {
+  flex: 1; min-height: 0; overflow-y: auto;
+  border-top: 1px solid var(--bdr);
+  background: var(--bg-card2);
+}
+.browse-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .55rem .75rem; border-bottom: 1px solid var(--bdr); cursor: default;
+}
+.browse-row:last-child { border-bottom: 0; }
+.browse-row.dir { cursor: pointer; }
+.browse-row.dir:hover { background: var(--bg-hover); }
+.browse-row.selected { background: var(--bg-active); outline: 1px solid rgba(109,74,255,.3); }
+.browse-row.up { color: var(--clr-text2); font-style: italic; }
+.browse-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browse-meta { color: var(--clr-text2); font-size: .75rem; flex-shrink: 0; }
+@media (max-width: 900px) {
+  .browse-card-hd { flex-wrap: wrap; }
+  .browse-hd-right { width: 100%; justify-content: flex-end; }
+}
+
+/* ── Schedule picker ── */
+.sched-picker { display: flex; flex-direction: column; gap: .85rem; min-width: 0; }
+.sched-modal-paths {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  margin-bottom: .25rem;
+}
+.sched-modal-label {
+  font-size: .75rem; color: var(--clr-text2); margin-bottom: -.25rem;
+}
+.sched-options { display: flex; flex-direction: column; gap: .5rem; }
+.sched-option {
+  display: flex; align-items: center; gap: .75rem; width: 100%;
+  padding: .75rem .85rem; border-radius: var(--r);
+  background: var(--bg-card2); border: 1px solid var(--bdr);
+  cursor: pointer; text-align: left; color: inherit;
+  transition: border-color .15s, background .15s;
+}
+.sched-option:hover { background: var(--bg-hover); }
+.sched-option.selected {
+  border-color: var(--clr-accent);
+  background: var(--clr-accent-b);
+}
+.sched-option-icon {
+  width: 36px; height: 36px; border-radius: var(--r); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-input); color: var(--clr-text2); font-size: 1.1rem;
+}
+.sched-option.selected .sched-option-icon {
+  background: var(--clr-accent-a); color: var(--clr-accent);
+}
+.sched-option-text { flex: 1; min-width: 0; }
+.sched-option-title { font-weight: 600; font-size: .9rem; }
+.sched-option-desc { font-size: .78rem; color: var(--clr-text2); margin-top: .15rem; }
+.sched-option.selected .sched-option-desc { color: var(--clr-accent); }
+.sched-option-check {
+  font-size: 1.15rem; color: transparent; flex-shrink: 0;
+}
+.sched-option.selected .sched-option-check { color: var(--clr-accent); }
+.sched-picker-row { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.sched-extra {
+  padding: .85rem; border-radius: var(--r);
+  background: var(--bg-card2); border: 1px solid var(--bdr);
+}
+.sched-time-row {
+  display: flex; align-items: center; gap: .35rem; flex: 1; min-width: 0;
+}
+.sched-time-row .form-control {
+  flex: 1; min-width: 0; padding: .45rem .5rem;
+}
+.sched-time-row .sched-hour { max-width: 4.25rem; }
+.sched-time-row .sched-minute { max-width: 4.75rem; }
+.sched-time-row .sched-ampm { max-width: 4.75rem; }
+.sched-time-sep { color: var(--clr-text2); font-weight: 500; flex-shrink: 0; }
+.path-pill-remote { color: var(--clr-success); }
+
+/* ── Modal ── */
+.modal {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem;
+}
+.modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.55);
+}
+.modal-panel {
+  position: relative; width: 100%; max-width: 480px;
+  background: var(--bg-card); border: 1px solid var(--bdr);
+  border-radius: var(--rl); box-shadow: 0 16px 48px rgba(0,0,0,.45);
+  overflow: hidden;
+}
+.modal-panel.schedule-modal-panel .modal-body { padding-top: .75rem; }
+.schedule-modal-panel .modal-ft .btn-primary {
+  background: var(--bg-input); border: 1px solid var(--bdr); color: var(--clr-text);
+}
+.schedule-modal-panel .modal-ft .btn-primary:hover {
+  background: var(--bg-hover); border-color: var(--bdr2);
+}
+.modal-hd {
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--bdr);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem;
+}
+.modal-title { font-weight: 600; font-size: 1rem; }
+.modal-sub { color: var(--clr-text2); font-size: .8rem; margin-top: .25rem; }
+.modal-body { padding: 1.25rem; }
+.modal-ft {
+  padding: 1rem 1.25rem; border-top: 1px solid var(--bdr);
+  display: flex; justify-content: flex-end; gap: .5rem;
+}
+.modal .sched-picker { min-width: 0; }
+
+/* ── Logs ── */
+.log-run {
+  background: var(--bg-card); border: 1px solid var(--bdr);
+  border-radius: var(--rl); margin-bottom: .75rem; overflow: hidden;
+}
+.log-run-hd {
+  padding: .85rem 1.25rem; display: flex; align-items: center;
+  gap: .75rem; cursor: pointer; user-select: none;
+}
+.log-run-hd:hover { background: var(--bg-hover); }
+.log-run-time { font-weight: 500; }
+.log-run-meta { font-size: .8rem; color: var(--clr-text2); flex: 1; }
+.log-run-body { border-top: 1px solid var(--bdr); display: none; }
+.log-run.open .log-run-body { display: block; }
+.log-job { border-bottom: 1px solid var(--bdr); }
+.log-job:last-child { border-bottom: 0; }
+.log-job-hd {
+  padding: .65rem 1.25rem .35rem; display: flex; align-items: center;
+  gap: .6rem; font-size: .875rem;
+}
+.log-job-detail {
+  padding: 0 1.25rem 1rem 2.5rem;
+  font-family: ui-monospace, monospace; font-size: .78rem; line-height: 1.7;
+  color: var(--clr-text2);
+}
+.log-line-error { color: var(--clr-danger); }
+.log-line-success { color: var(--clr-success); }
+.log-pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1rem; margin-top: 1rem; padding: .75rem 0;
+}
+.log-page-info { font-size: .875rem; color: var(--clr-text2); min-width: 8rem; text-align: center; }
+
+/* ── Status dot ── */
+.status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; background: var(--clr-text2); flex-shrink: 0; }
+.status-dot.running { background: var(--clr-warn); animation: pulse 1.2s infinite; }
+.status-dot.ok { background: var(--clr-success); }
+.status-dot.error { background: var(--clr-danger); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── Toast ── */
+#toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 1080;
+  display: flex; flex-direction: column; gap: .5rem; pointer-events: none;
+}
+.toast-msg {
+  padding: .625rem 1rem; border-radius: var(--r); font-size: .875rem;
+  background: var(--bg-card); border: 1px solid var(--bdr-s);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); pointer-events: auto;
+  animation: fadein .2s ease;
+}
+.toast-msg.success { border-color: var(--clr-success); color: var(--clr-success); }
+.toast-msg.error   { border-color: var(--clr-danger); color: var(--clr-danger); }
+@keyframes fadein { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+.hidden { display: none !important; }
+.spinner {
+  width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.2);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin .7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginScreen" class="visible">
+  <div class="login-card">
+    <div class="login-brand">
+      <img class="login-brand-icon" src="/favicon.svg" alt="" width="40" height="40">
+      <h1>Proton<span>Sync</span></h1>
+      <p>Sign in to manage your backup</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input class="form-control" type="text" id="loginUser" autocomplete="username" placeholder="admin">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-control" type="password" id="loginPass" autocomplete="current-password">
+    </div>
+    <div id="loginError" class="alert alert-warn hidden" role="alert"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:.5rem" id="btnLogin">
+      <i class="ti ti-login"></i> Sign in
+    </button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="appRoot" class="hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-brand">
+      <img class="sb-brand-icon" src="/favicon.svg" alt="" width="20" height="20">
+      <span class="sb-brand-text">Proton Sync</span>
+    </div>
+    <nav class="sb-nav">
+      <div class="nav-item active" data-page="dashboard">
+        <button class="nav-link" type="button"><i class="ti ti-dashboard"></i><span class="sb-label">Dashboard</span></button>
+      </div>
+      <div class="nav-item" data-page="stats">
+        <button class="nav-link" type="button"><i class="ti ti-chart-bar"></i><span class="sb-label">Stats</span></button>
+      </div>
+      <div class="nav-item" data-page="config">
+        <button class="nav-link" type="button"><i class="ti ti-database"></i><span class="sb-label">Backup Paths</span></button>
+      </div>
+      <div class="nav-item" data-page="schedule">
+        <button class="nav-link" type="button"><i class="ti ti-calendar-time"></i><span class="sb-label">Schedule</span></button>
+      </div>
+      <div class="nav-item" data-page="logs">
+        <button class="nav-link" type="button"><i class="ti ti-file-text"></i><span class="sb-label">Logs</span></button>
+      </div>
+      <div class="nav-item" data-page="settings">
+        <button class="nav-link" type="button"><i class="ti ti-settings"></i><span class="sb-label">Settings</span></button>
+      </div>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-user">
+        <div class="sb-avatar" id="sbAvatar">?</div>
+        <div class="sb-user-info">
+          <div class="sb-user-name" id="loggedInAs">—</div>
+          <div class="sb-user-status">
+            <span class="status-dot" id="sidebarStatusDot"></span>
+            <span id="sidebarStatusText">Loading…</span>
+          </div>
+        </div>
+      </div>
+      <button class="icon-btn hidden" id="btnLogout" title="Logout"><i class="ti ti-logout"></i></button>
+      <button class="icon-btn" id="btnSidebarCollapse" title="Collapse sidebar"><i class="ti ti-chevrons-left"></i></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-scroll">
+
+      <!-- Dashboard -->
+      <div class="app-page active" id="page-dashboard">
+        <div class="page-hd">
+          <div>
+            <div class="page-title">Dashboard</div>
+            <div class="page-sub">Proton Drive sync status and controls</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnRefreshDash"><i class="ti ti-refresh"></i> Refresh</button>
+            <button class="btn btn-primary" id="btnSyncNow"><i class="ti ti-player-play"></i> Sync Now</button>
+          </div>
+        </div>
+
+        <div id="alertNotConfigured" class="alert alert-warn hidden">
+          <i class="ti ti-alert-triangle"></i>
+          <span class="alert-body">Proton Drive not yet connected. Go to <strong>Settings</strong> to set up credentials.</span>
+        </div>
+        <div id="syncRunningBanner" class="sync-live-card hidden">
+          <div class="sync-live-hd" id="syncLiveToggle">
+            <span style="display:flex;align-items:center;gap:.5rem">
+              <span class="spinner"></span>
+              <strong>Sync is running</strong>
+              <span class="sync-live-summary" id="syncLiveSummary">Starting…</span>
+            </span>
+            <span style="display:flex;align-items:center;gap:.35rem" onclick="event.stopPropagation()">
+              <button class="btn btn-ghost btn-icon btn-sm" id="btnSyncLiveExpand" type="button" title="Show progress">
+                <i class="ti ti-chevron-down" id="syncLiveChevron"></i>
+              </button>
+              <button class="btn btn-ghost btn-sm" id="btnStopSync" type="button">Stop</button>
+            </span>
+          </div>
+          <div id="syncLiveBody" class="sync-live-body">
+            <div class="sync-job-list" id="syncJobProgress"></div>
+            <div class="sync-live-logs" id="syncLiveLogs">Waiting for log output…</div>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-icon success" id="statStatusIcon"><i class="ti ti-shield-check"></i></div>
+            <div>
+              <div class="stat-label">Status</div>
+              <div class="stat-value" id="statStatus">—</div>
+              <div class="stat-sub" id="statStatusSub">—</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon accent"><i class="ti ti-clock"></i></div>
+            <div>
+              <div class="stat-label">Last Sync</div>
+              <div class="stat-value" id="statLastSync" style="font-size:1.1rem">Never</div>
+              <div class="stat-sub" id="statLastSyncSub">—</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i class="ti ti-upload"></i></div>
+            <div>
+              <div class="stat-label">Uploaded</div>
+              <div class="stat-value" id="statUploaded">—</div>
+              <div class="stat-sub">this run</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon danger"><i class="ti ti-trash"></i></div>
+            <div>
+              <div class="stat-label">Deleted</div>
+              <div class="stat-value" id="statDeleted">—</div>
+              <div class="stat-sub">this run</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <span class="card-title">Backup Tasks</span>
+            <span class="card-meta" id="jobsCountMeta">0 configured</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Source → Remote</th>
+                  <th>Schedule</th>
+                  <th>Last Run</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="jobsTableBody">
+                <tr><td colspan="6" style="text-align:center;color:var(--clr-text2)">No jobs configured</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="app-page" id="page-stats">
+        <div class="page-hd">
+          <div>
+            <div class="page-title">Stats</div>
+            <div class="page-sub">Storage footprint and sync activity</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnRefreshStats"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+        </div>
+
+        <div class="stat-grid stat-grid-summary">
+          <div class="stat-card">
+            <div class="stat-icon accent"><i class="ti ti-files"></i></div>
+            <div>
+              <div class="stat-label">Files</div>
+              <div class="stat-value" id="statFiles" style="font-size:1.1rem">—</div>
+              <div class="stat-sub">managed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon accent"><i class="ti ti-folders"></i></div>
+            <div>
+              <div class="stat-label">Folders</div>
+              <div class="stat-value" id="statFolders" style="font-size:1.1rem">—</div>
+              <div class="stat-sub">managed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i class="ti ti-database"></i></div>
+            <div>
+              <div class="stat-label">Storage</div>
+              <div class="stat-value" id="statStorage" style="font-size:1.1rem">—</div>
+              <div class="stat-sub">source data size</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon success"><i class="ti ti-cloud-upload"></i></div>
+            <div>
+              <div class="stat-label">Uploaded Today</div>
+              <div class="stat-value" id="statUploadedToday" style="font-size:1.1rem">—</div>
+              <div class="stat-sub">across all tasks</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <span class="card-title">Trends</span>
+            <span class="card-meta">last 30 days</span>
+          </div>
+          <div class="card-body">
+            <div class="charts-grid">
+              <div class="chart-panel">
+                <div class="chart-title">Storage over time</div>
+                <div class="chart-wrap" id="chartStorageWrap">
+                  <canvas id="chartStorage"></canvas>
+                </div>
+                <div class="chart-empty hidden" id="chartStorageEmpty">No storage history yet</div>
+              </div>
+              <div class="chart-panel">
+                <div class="chart-title">File changes</div>
+                <div class="chart-wrap" id="chartActivityWrap">
+                  <canvas id="chartActivity"></canvas>
+                </div>
+                <div class="chart-empty hidden" id="chartActivityEmpty">No sync activity yet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <span class="card-title">Per Task</span>
+            <span class="card-meta" id="statsTasksMeta">0 tasks</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Source → Remote</th>
+                  <th>Files</th>
+                  <th>Folders</th>
+                  <th>Size</th>
+                  <th>Uploaded Today</th>
+                </tr>
+              </thead>
+              <tbody id="statsTasksTableBody">
+                <tr><td colspan="6" style="text-align:center;color:var(--clr-text2)">No tasks configured</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Backup Paths -->
+      <div class="app-page" id="page-config">
+        <div class="page-hd">
+          <div>
+            <div class="page-title">Backup Paths</div>
+            <div class="page-sub">Set backup locations — map source folders to Proton Drive destinations</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnBrowseRefresh"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card browse-card">
+            <div class="card-hd browse-card-hd">
+              <div class="browse-hd-left">
+                <div class="browse-hd-title">
+                  <code class="browse-current-path" id="browseCurrentPath">/data</code>
+                </div>
+              </div>
+              <div class="browse-hd-right">
+                <button class="btn btn-primary btn-sm" id="btnUseBrowsePath" disabled>
+                  <i class="ti ti-folder-plus"></i> Use Folder
+                </button>
+              </div>
+            </div>
+            <div class="card-body browse-card-body">
+              <div id="fileBrowser"><div style="text-align:center;padding:2rem;color:var(--clr-text2)">Loading…</div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-hd"><span class="card-title" id="jobFormTitle">Add Backup Location</span></div>
+            <div class="card-body">
+              <input type="hidden" id="jobEditId" value="">
+              <div class="form-group">
+                <label class="form-label">Name</label>
+                <input class="form-control" type="text" id="jobNameInput" placeholder="Photos">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Source Directory</label>
+                <input class="form-control" type="text" id="jobSourceInput" placeholder="/data/photos">
+                <div class="form-hint">Pick a folder on the left, or enter an absolute path.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Proton Drive Folder</label>
+                <input class="form-control" type="text" id="jobRemoteInput" placeholder="NAS-Backup/photos">
+                <div class="form-hint">Path on Proton Drive. Created automatically if it doesn't exist.</div>
+              </div>
+              <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem">
+                <button class="btn btn-ghost hidden" id="btnCancelEdit">Cancel</button>
+                <button class="btn btn-primary" id="btnSaveJob"><i class="ti ti-plus"></i> <span id="btnSaveJobLabel">Add Location</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <span class="card-title">Backup Locations</span>
+            <span class="card-meta" id="jobsConfigCount">0 locations</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Source → Remote</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="jobsConfigTableBody">
+                <tr><td colspan="3" style="text-align:center;color:var(--clr-text2)">No backup locations configured</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule -->
+      <div class="app-page" id="page-schedule">
+        <div class="page-hd">
+          <div>
+            <div class="page-title">Schedule</div>
+            <div class="page-sub">Set automatic backup times for each location</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnRefreshSchedule"><i class="ti ti-refresh"></i> Refresh</button>
+          </div>
+        </div>
+
+        <div id="scheduleEmpty" class="card hidden">
+          <div class="card-body" style="text-align:center;padding:3rem">
+            <i class="ti ti-database" style="font-size:2rem;color:var(--clr-text2)"></i>
+            <p style="margin-top:1rem;color:var(--clr-text2)">No backup locations yet.</p>
+            <button class="btn btn-primary btn-sm" style="margin-top:.75rem" type="button" id="btnGoToBackupJobs">
+              <i class="ti ti-plus"></i> Add a backup location
+            </button>
+          </div>
+        </div>
+
+        <div class="card" id="scheduleCard">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Location</th>
+                  <th>Current</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="schedulesTableBody">
+                <tr><td colspan="4" style="text-align:center;color:var(--clr-text2)">No backup locations configured</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs -->
+      <div class="app-page" id="page-logs">
+        <div class="page-hd">
+          <div>
+            <div class="page-title">Logs</div>
+            <div class="page-sub">Sync operation history</div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost" id="btnRefreshLogs"><i class="ti ti-refresh"></i> Refresh</button>
+            <button class="btn btn-danger-ghost" id="btnClearLogs"><i class="ti ti-trash"></i> Clear Logs</button>
+          </div>
+        </div>
+        <div id="logViewer">
+          <div style="text-align:center;padding:3rem;color:var(--clr-text2)">No logs yet — run a sync first.</div>
+        </div>
+        <div id="logPagination" class="log-pagination hidden">
+          <button class="btn btn-ghost btn-sm" id="btnLogsPrev" type="button"><i class="ti ti-chevron-left"></i> Previous</button>
+          <span id="logPageInfo" class="log-page-info">Page 1 of 1</span>
+          <button class="btn btn-ghost btn-sm" id="btnLogsNext" type="button">Next <i class="ti ti-chevron-right"></i></button>
+        </div>
+      </div>
+
+      <!-- Settings -->
+      <div class="app-page" id="page-settings">
+        <div class="page-hd">
+          <div>
+            <div class="page-title">Settings</div>
+            <div class="page-sub">Paths, Proton Drive connection, and config backup</div>
+          </div>
+        </div>
+
+        <div class="settings-stack">
+          <div class="card" id="pathSettingsCard">
+            <div class="card-hd"><span class="card-title">Default Paths</span></div>
+            <div class="card-body">
+              <div id="pathSettingsLockedNote" class="alert alert-info hidden">
+                <i class="ti ti-lock"></i>
+                <span class="alert-body">
+                  These paths are locked by <strong>docker-compose.yml</strong> and cannot be edited here.
+                  To configure them in Settings, remove <code>PROTON_SYNC_PATHS_LOCKED</code>, <code>SOURCE_DIR</code>, and <code>REMOTE_PATH</code> from your compose file.
+                </span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Source directory</label>
+                <input class="form-control" type="text" id="pathSettingsSource" placeholder="/data">
+                <div class="form-hint">Path inside the container — must match your data volume mount (usually <code>/data</code>).</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Proton Drive root folder</label>
+                <input class="form-control" type="text" id="pathSettingsRemote" placeholder="NAS-Backup">
+                <div class="form-hint">Top-level folder on Proton Drive. Task paths are created under this.</div>
+              </div>
+              <button class="btn btn-primary" id="btnSavePathSettings" type="button">
+                <i class="ti ti-device-floppy"></i> Save
+              </button>
+            </div>
+          </div>
+
+          <div id="authConnectedBox" class="card hidden">
+            <div class="card-hd"><span class="card-title">Proton Drive</span></div>
+            <div class="card-body">
+              <div class="auth-status-hd">
+                <div class="auth-status-hd-main">
+                  <div class="auth-shield"><i class="ti ti-shield-check"></i></div>
+                  <div>
+                    <div class="auth-status-title">Connected to Proton Drive</div>
+                    <div class="auth-status-sub">Your account is active and ready to sync</div>
+                  </div>
+                </div>
+                <span class="badge badge-success auth-status-badge"><span class="status-dot ok"></span> Active</span>
+              </div>
+              <div class="auth-actions">
+                <button class="btn btn-ghost" id="btnReauth"><i class="ti ti-refresh"></i> Re-authenticate</button>
+                <button class="btn btn-danger-ghost" id="btnDisconnect"><i class="ti ti-power"></i> Disconnect</button>
+              </div>
+              <div class="info-card">
+                <i class="ti ti-info-circle"></i>
+                <div>Proton Drive is linked via <strong>rclone</strong>. Files are encrypted end-to-end during transfer. Re-authentication updates stored credentials — your local files are not affected.</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="authForm" class="card">
+            <div class="card-hd"><span class="card-title">Proton Drive</span></div>
+            <div class="card-body">
+              <div class="alert alert-info">
+                <i class="ti ti-info-circle"></i>
+                <span class="alert-body">Credentials are stored locally in rclone config and used only to authenticate with Proton Drive.</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Proton Username / Email</label>
+                <input class="form-control" type="text" id="authUser" placeholder="you@proton.me" autocomplete="username">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-control" type="password" id="authPass" autocomplete="current-password">
+              </div>
+              <button class="btn btn-primary" id="btnConnect"><i class="ti ti-plug-connected"></i> Connect</button>
+              <div id="authMessages"></div>
+            </div>
+          </div>
+
+          <div class="card config-backup-card">
+            <div class="card-hd">
+              <span class="card-title"><i class="ti ti-archive"></i> Config Backup</span>
+            </div>
+            <div class="card-body config-backup-body">
+              <div class="config-backup-grid">
+                <div class="config-backup-panel">
+                  <div class="config-backup-panel-hd">
+                    <div class="config-backup-panel-icon export"><i class="ti ti-download"></i></div>
+                    <div>
+                      <div class="config-backup-panel-title">Download backup</div>
+                      <div class="config-backup-panel-sub">Export credentials, jobs, and sync databases as a zip file.</div>
+                    </div>
+                  </div>
+                  <div class="config-backup-panel-actions">
+                    <button class="btn btn-primary btn-sm" id="btnConfigExport" type="button">
+                      <i class="ti ti-download"></i> Download zip
+                    </button>
+                  </div>
+                </div>
+                <div class="config-backup-panel">
+                  <div class="config-backup-panel-hd">
+                    <div class="config-backup-panel-icon import"><i class="ti ti-upload"></i></div>
+                    <div>
+                      <div class="config-backup-panel-title">Restore backup</div>
+                      <div class="config-backup-panel-sub">Replace current config with a previously saved zip file.</div>
+                    </div>
+                  </div>
+                  <div class="config-backup-panel-actions">
+                    <div class="config-file-picker">
+                      <input type="file" id="configImportFile" accept=".zip,application/zip">
+                      <label class="config-file-label" for="configImportFile">
+                        <i class="ti ti-file-zip"></i> Choose file
+                      </label>
+                      <span class="config-file-name" id="configImportFileName">No file selected</span>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" id="btnConfigImport" type="button">
+                      <i class="ti ti-upload"></i> Restore from file
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="config-backup-tip">
+                <i class="ti ti-info-circle"></i>
+                <span>For disaster recovery, place <code>backup.zip</code> in the root of your config volume (the host folder mounted to <code>/config</code>). It auto-restores on startup when config is empty.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div id="scheduleModal" class="modal hidden" role="dialog" aria-labelledby="scheduleModalTitle">
+  <div class="modal-backdrop" id="scheduleModalBackdrop"></div>
+  <div class="modal-panel schedule-modal-panel">
+    <div class="modal-hd">
+      <div>
+        <div class="modal-title" id="scheduleModalTitle">Edit schedule</div>
+        <div class="modal-sub" id="scheduleModalSub"></div>
+      </div>
+      <button class="icon-btn" type="button" id="btnScheduleModalClose" title="Close"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body" id="scheduleModalBody"></div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" type="button" id="btnScheduleModalCancel">Cancel</button>
+      <button class="btn btn-primary" type="button" id="btnScheduleModalSave"><i class="ti ti-device-floppy"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let state = { configured: false, running: false, lastRun: null, jobs: [], authEnabled: false, authenticated: false, username: '' };
+let authPollTimer = null, statusPollTimer = null, syncLogPollTimer = null;
+let syncLiveExpanded = true;
+let activeSyncJobs = [];
+let scheduleEditJobId = null;
+const LOGS_PER_PAGE = 10;
+let allLogRuns = [];
+let logsPage = 0;
+const browseState = { path: null, parent: null, selectedPath: null, suggestedRemote: null };
+
+const SCHEDULE_LABELS = {
+  '*/30 * * * *': 'Every 30 min',
+  '0 * * * *': 'Hourly',
+};
+const SCHEDULE_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function showLogin() {
+  document.getElementById('loginScreen').classList.add('visible');
+  document.getElementById('appRoot').classList.add('hidden');
+  if (statusPollTimer) clearInterval(statusPollTimer);
+}
+function showApp() {
+  document.getElementById('loginScreen').classList.remove('visible');
+  document.getElementById('appRoot').classList.remove('hidden');
+  const logoutBtn = document.getElementById('btnLogout');
+  const name = state.username || 'user';
+  document.getElementById('loggedInAs').textContent = name;
+  document.getElementById('sbAvatar').textContent = name.charAt(0).toUpperCase();
+  if (state.authEnabled) logoutBtn.classList.remove('hidden');
+  else logoutBtn.classList.add('hidden');
+}
+function toast(msg, type = '') {
+  const el = document.createElement('div');
+  el.className = 'toast-msg' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function pad2(n) { return String(n).padStart(2, '0'); }
+function formatTime12(time24) {
+  const { hour12, minute, ampm } = parseTime24(time24);
+  return `${hour12}:${pad2(minute)} ${ampm}`;
+}
+function parseTime24(time24) {
+  const [h24, m] = (time24 || '03:00').split(':').map(Number);
+  const ampm = h24 >= 12 ? 'PM' : 'AM';
+  const hour12 = h24 % 12 || 12;
+  return { hour12, minute: m, ampm };
+}
+function scheduleTimeSelectsHtml(time24) {
+  const { hour12, minute, ampm } = parseTime24(time24);
+  const hourOpts = Array.from({ length: 12 }, (_, i) => {
+    const v = i + 1;
+    return `<option value="${v}"${v === hour12 ? ' selected' : ''}>${pad2(v)}</option>`;
+  }).join('');
+  const minOpts = Array.from({ length: 60 }, (_, i) => {
+    const v = pad2(i);
+    return `<option value="${v}"${i === minute ? ' selected' : ''}>${v}</option>`;
+  }).join('');
+  return `<div class="sched-time-row">
+    <select class="form-control sched-hour" aria-label="Hour">${hourOpts}</select>
+    <span class="sched-time-sep">:</span>
+    <select class="form-control sched-minute" aria-label="Minute">${minOpts}</select>
+    <select class="form-control sched-ampm" aria-label="AM/PM">
+      <option value="AM"${ampm === 'AM' ? ' selected' : ''}>AM</option>
+      <option value="PM"${ampm === 'PM' ? ' selected' : ''}>PM</option>
+    </select>
+  </div>`;
+}
+function getTimeFromSchedulePicker(root) {
+  const h12 = parseInt(root.querySelector('.sched-hour')?.value || '12', 10);
+  const m = parseInt(root.querySelector('.sched-minute')?.value || '0', 10);
+  const ampm = root.querySelector('.sched-ampm')?.value || 'AM';
+  let h24 = h12 % 12;
+  if (ampm === 'PM') h24 += 12;
+  return { h: h24, m };
+}
+function parseCronToPicker(cron) {
+  if (!cron) return { freq: 'manual' };
+  if (cron === '*/30 * * * *') return { freq: 'every30' };
+  if (cron === '0 * * * *') return { freq: 'hourly' };
+  const daily = cron.match(/^(\d+) (\d+) \* \* \*$/);
+  if (daily) return { freq: 'daily', time: `${pad2(daily[2])}:${pad2(daily[1])}` };
+  const weekly = cron.match(/^(\d+) (\d+) \* \* (\d+)$/);
+  if (weekly) return { freq: 'weekly', time: `${pad2(weekly[2])}:${pad2(weekly[1])}`, day: weekly[3] };
+  return { freq: 'custom', cron };
+}
+function getSchedFreq(jobId) {
+  const root = document.querySelector(`.sched-picker[data-job-id="${jobId}"]`);
+  if (!root) return 'manual';
+  return root.querySelector('.sched-option.selected')?.dataset.freq
+    || root.querySelector('.sched-freq-value')?.value
+    || 'manual';
+}
+
+function cronFromPicker(jobId) {
+  const root = document.querySelector(`.sched-picker[data-job-id="${jobId}"]`);
+  if (!root) return null;
+  const freq = getSchedFreq(jobId);
+  if (freq === 'manual') return null;
+  if (freq === 'every30') return '*/30 * * * *';
+  if (freq === 'hourly') return '0 * * * *';
+  if (freq === 'custom') return root.querySelector('.sched-custom')?.value.trim() || null;
+  const { h, m } = getTimeFromSchedulePicker(root);
+  if (freq === 'daily') return `${m} ${h} * * *`;
+  if (freq === 'weekly') {
+    const day = root.querySelector('.sched-day')?.value ?? '0';
+    return `${m} ${h} * * ${day}`;
+  }
+  return null;
+}
+function humanSchedule(s) {
+  if (!s) return 'Manual';
+  if (SCHEDULE_LABELS[s]) return SCHEDULE_LABELS[s];
+  const p = parseCronToPicker(s);
+  if (p.freq === 'daily') return `Daily · ${formatTime12(p.time)}`;
+  if (p.freq === 'weekly') return `Weekly · ${SCHEDULE_DAYS[p.day] || 'Sun'} ${formatTime12(p.time)}`;
+  return s;
+}
+function jobRemote(job) {
+  return job.remote_folder || (job.remote_path || '').replace(/^protondrive:/, '');
+}
+function formatPathPills(src, remote, opts = {}) {
+  const r = (remote || '').replace(/^protondrive:/, '');
+  const remoteCls = opts.highlightRemote ? 'path-pill path-pill-remote' : 'path-pill';
+  return `<span class="path-pill">${esc(src)}</span> <span style="color:var(--clr-text2)">→</span> <span class="${remoteCls}">${esc(r)}</span>`;
+}
+
+const SCHEDULE_OPTIONS = [
+  { freq: 'manual', icon: 'ti-hand-click', title: 'Manual', desc: 'Run on demand only' },
+  { freq: 'every30', icon: 'ti-clock', title: 'Every 30 minutes', desc: 'At :00 and :30 each hour' },
+  { freq: 'hourly', icon: 'ti-clock-hour-4', title: 'Hourly', desc: 'Every 60 minutes' },
+  { freq: 'daily', icon: 'ti-calendar', title: 'Daily', desc: 'Once per day at a set time' },
+  { freq: 'weekly', icon: 'ti-calendar-week', title: 'Weekly', desc: 'On a set day each week' },
+  { freq: 'custom', icon: 'ti-terminal-2', title: 'Custom cron', desc: 'Define your own expression' },
+];
+function formatLastRunTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+function formatDateShort(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return `${d.getMonth()+1} / ${d.getDate()} / ${d.getFullYear()}`;
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch('/api' + path, { headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', ...opts });
+  if (r.status === 401 && path !== '/login') { state.authenticated = false; showLogin(); throw new Error('Unauthorized'); }
+  return r.json();
+}
+async function checkSession() {
+  const d = await fetch('/api/session').then(r => r.json());
+  state.authEnabled = d.auth_enabled;
+  state.authenticated = d.authenticated;
+  state.username = d.username || '';
+  if (d.auth_enabled && !d.authenticated) { showLogin(); return false; }
+  showApp();
+  return true;
+}
+
+// Navigation
+document.querySelectorAll('.nav-item[data-page]').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item[data-page]').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.app-page').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('page-' + el.dataset.page).classList.add('active');
+    if (el.dataset.page === 'logs') loadLogs();
+    if (el.dataset.page === 'dashboard') refreshStatus();
+    if (el.dataset.page === 'stats') refreshStatsPage();
+    if (el.dataset.page === 'config') loadFileBrowser();
+    if (el.dataset.page === 'schedule') renderSchedulesTable();
+    if (el.dataset.page === 'settings') loadPathSettings();
+  });
+});
+document.getElementById('btnSidebarCollapse').addEventListener('click', () => {
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  const icon = sb.classList.contains('collapsed') ? 'ti-chevrons-right' : 'ti-chevrons-left';
+  document.querySelector('#btnSidebarCollapse i').className = 'ti ' + icon;
+});
+
+// Login
+document.getElementById('btnLogin').addEventListener('click', async () => {
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+    body: JSON.stringify({ username: document.getElementById('loginUser').value.trim(), password: document.getElementById('loginPass').value }) });
+  const d = await r.json();
+  if (!r.ok) { errEl.textContent = d.error || 'Login failed'; errEl.classList.remove('hidden'); return; }
+  state.authenticated = true; state.authEnabled = true; state.username = d.username;
+  showApp(); refreshStatus();
+});
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('btnLogin').click(); });
+document.getElementById('btnLogout').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+  state.authenticated = false; showLogin();
+  document.getElementById('loginPass').value = '';
+});
+
+function updateSidebarStatus() {
+  const dot = document.getElementById('sidebarStatusDot');
+  const txt = document.getElementById('sidebarStatusText');
+  dot.className = 'status-dot';
+  if (state.running) { dot.classList.add('running'); txt.textContent = 'Syncing…'; }
+  else if (!state.configured) { txt.textContent = 'Not configured'; }
+  else if (state.lastRun?.status === 'error' || state.lastRun?.status === 'partial') { dot.classList.add('error'); txt.textContent = 'Error'; }
+  else { dot.classList.add('ok'); txt.textContent = 'Ready'; }
+}
+
+async function refreshStatus() {
+  const d = await api('/status');
+  state.configured = d.rclone_configured;
+  state.running = d.sync_running;
+  state.lastRun = d.last_run;
+  state.jobs = d.jobs || [];
+  updateSidebarStatus();
+
+  document.getElementById('alertNotConfigured').classList.toggle('hidden', state.configured);
+  const banner = document.getElementById('syncRunningBanner');
+  banner.classList.toggle('hidden', !state.running);
+  if (state.running) {
+    updateSyncLiveExpandUI();
+    updateSyncProgressPanel();
+  } else {
+    activeSyncJobs = [];
+    stopSyncLogPoll();
+  }
+
+  const lr = state.lastRun;
+  const statEl = document.getElementById('statStatus');
+  const statIcon = document.getElementById('statStatusIcon');
+  if (lr?.status === 'success') {
+    statEl.textContent = 'success'; statEl.className = 'stat-value success';
+    document.getElementById('statStatusSub').textContent = 'System healthy';
+    statIcon.className = 'stat-icon success';
+  } else if (lr) {
+    statEl.textContent = lr.status; statEl.className = 'stat-value';
+    statEl.style.color = 'var(--clr-danger)';
+    document.getElementById('statStatusSub').textContent = 'Check logs';
+    statIcon.className = 'stat-icon danger';
+  } else {
+    statEl.textContent = '—'; statEl.className = 'stat-value';
+    statEl.style.color = '';
+    document.getElementById('statStatusSub').textContent = 'No sync yet';
+    statIcon.className = 'stat-icon accent';
+  }
+
+  if (lr?.timestamp) {
+    const d2 = new Date(lr.timestamp);
+    document.getElementById('statLastSync').textContent = d2.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    document.getElementById('statLastSyncSub').textContent = formatDateShort(lr.timestamp);
+  } else {
+    document.getElementById('statLastSync').textContent = 'Never';
+    document.getElementById('statLastSyncSub').textContent = '—';
+  }
+  document.getElementById('statUploaded').textContent = lr ? `${lr.new_changed ?? 0} files` : '—';
+  document.getElementById('statDeleted').textContent = lr ? `${lr.deleted ?? 0} files` : '—';
+
+  document.getElementById('jobsCountMeta').textContent = `${state.jobs.length} configured`;
+  document.getElementById('jobsConfigCount').textContent = `${state.jobs.length} location${state.jobs.length === 1 ? '' : 's'}`;
+
+  maybeRefreshScheduleUI();
+
+  const connected = state.configured;
+  document.getElementById('authConnectedBox').classList.toggle('hidden', !connected);
+  document.getElementById('authForm').classList.toggle('hidden', connected);
+  renderJobsTables();
+  if (document.getElementById('page-stats').classList.contains('active')) {
+    updateStatsSummary();
+    renderStatsTasksTable();
+    refreshCharts();
+  }
+}
+
+function jobTotals() {
+  return state.jobs.reduce((acc, job) => {
+    const s = job.stats || {};
+    acc.files += s.files || 0;
+    acc.folders += s.folders || 0;
+    acc.bytes += s.bytes || 0;
+    acc.uploadedToday += s.uploaded_today || 0;
+    return acc;
+  }, { files: 0, folders: 0, bytes: 0, uploadedToday: 0 });
+}
+
+function updateStatsSummary() {
+  const totals = jobTotals();
+  document.getElementById('statFiles').textContent = state.jobs.length
+    ? `${totals.files} file${totals.files === 1 ? '' : 's'}`
+    : '—';
+  document.getElementById('statFolders').textContent = state.jobs.length
+    ? `${totals.folders} folder${totals.folders === 1 ? '' : 's'}`
+    : '—';
+  document.getElementById('statStorage').textContent = state.jobs.length ? formatBytes(totals.bytes) : '—';
+  document.getElementById('statUploadedToday').textContent = state.jobs.length
+    ? `${totals.uploadedToday} file${totals.uploadedToday === 1 ? '' : 's'}`
+    : '—';
+  document.getElementById('statsTasksMeta').textContent = `${state.jobs.length} task${state.jobs.length === 1 ? '' : 's'}`;
+}
+
+async function refreshStatsPage() {
+  await refreshStatus();
+  updateStatsSummary();
+  renderStatsTasksTable();
+  await refreshCharts();
+}
+
+function jobLastRun(jobId) { return state.lastRun?.jobs?.find(j => j.job_id === jobId); }
+
+let storageChart = null;
+let activityChart = null;
+const CHART_THEME = {
+  text: '#7a82a8',
+  grid: 'rgba(255,255,255,.06)',
+  accent: '#6d4aff',
+  accentFill: 'rgba(109,74,255,.18)',
+  info: '#20a8c4',
+  danger: '#e03131',
+};
+
+function destroyChart(chart) {
+  if (chart) chart.destroy();
+  return null;
+}
+
+function formatChartDate(ts) {
+  return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function formatChartDay(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function renderStorageChart(points) {
+  const wrap = document.getElementById('chartStorageWrap');
+  const empty = document.getElementById('chartStorageEmpty');
+  if (!points.length) {
+    wrap.classList.add('hidden');
+    empty.classList.remove('hidden');
+    storageChart = destroyChart(storageChart);
+    return;
+  }
+  wrap.classList.remove('hidden');
+  empty.classList.add('hidden');
+  const ctx = document.getElementById('chartStorage').getContext('2d');
+  storageChart = destroyChart(storageChart);
+  storageChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: points.map(p => formatChartDate(p.timestamp)),
+      datasets: [{
+        label: 'Source storage',
+        data: points.map(p => p.bytes),
+        borderColor: CHART_THEME.accent,
+        backgroundColor: CHART_THEME.accentFill,
+        fill: true,
+        tension: 0.35,
+        pointRadius: points.length > 14 ? 0 : 3,
+        pointHoverRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${formatBytes(ctx.parsed.y)}`,
+            afterLabel: (ctx) => {
+              const point = points[ctx.dataIndex];
+              return `${point.files} files · ${point.folders} folders`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: CHART_THEME.grid },
+          ticks: { color: CHART_THEME.text, maxTicksLimit: 6 },
+        },
+        y: {
+          grid: { color: CHART_THEME.grid },
+          ticks: {
+            color: CHART_THEME.text,
+            callback: (v) => formatBytes(v),
+          },
+        },
+      },
+    },
+  });
+}
+
+function renderActivityChart(daily) {
+  const wrap = document.getElementById('chartActivityWrap');
+  const empty = document.getElementById('chartActivityEmpty');
+  if (!daily.length) {
+    wrap.classList.add('hidden');
+    empty.classList.remove('hidden');
+    activityChart = destroyChart(activityChart);
+    return;
+  }
+  wrap.classList.remove('hidden');
+  empty.classList.add('hidden');
+  const ctx = document.getElementById('chartActivity').getContext('2d');
+  activityChart = destroyChart(activityChart);
+  activityChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: daily.map(d => formatChartDay(d.date)),
+      datasets: [
+        {
+          label: 'New/changed',
+          data: daily.map(d => d.new_changed),
+          backgroundColor: CHART_THEME.info,
+          borderRadius: 4,
+        },
+        {
+          label: 'Deleted',
+          data: daily.map(d => d.deleted),
+          backgroundColor: CHART_THEME.danger,
+          borderRadius: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: CHART_THEME.text, boxWidth: 12, padding: 16 },
+        },
+        tooltip: {
+          callbacks: {
+            footer: (items) => {
+              const idx = items[0]?.dataIndex;
+              if (idx == null) return '';
+              const syncs = daily[idx]?.syncs || 0;
+              return `${syncs} sync${syncs === 1 ? '' : 's'}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: CHART_THEME.text, maxTicksLimit: 8 },
+        },
+        y: {
+          beginAtZero: true,
+          grid: { color: CHART_THEME.grid },
+          ticks: {
+            color: CHART_THEME.text,
+            precision: 0,
+            stepSize: 1,
+          },
+        },
+      },
+    },
+  });
+}
+
+async function refreshCharts() {
+  if (!document.getElementById('page-stats').classList.contains('active')) return;
+  if (typeof Chart === 'undefined') return;
+  try {
+    const data = await api('/stats/history?days=30');
+    renderStorageChart(data.storage || []);
+    renderActivityChart(data.activity_daily || []);
+  } catch (_) {}
+}
+
+function renderStatsTasksTable() {
+  const body = document.getElementById('statsTasksTableBody');
+  if (!state.jobs.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--clr-text2)">No tasks configured</td></tr>';
+    return;
+  }
+  body.innerHTML = state.jobs.map(job => {
+    const stats = job.stats || {};
+    const uploadedToday = stats.uploaded_today ?? 0;
+    const files = stats.files ?? 0;
+    const folders = stats.folders ?? 0;
+    return `<tr>
+      <td><strong>${esc(job.name)}</strong></td>
+      <td>${formatPathPills(job.source_dir, jobRemote(job))}</td>
+      <td>${files}</td>
+      <td>${folders}</td>
+      <td>${formatBytes(stats.bytes || 0)}</td>
+      <td>${uploadedToday} file${uploadedToday === 1 ? '' : 's'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderJobsTables() {
+  const dashBody = document.getElementById('jobsTableBody');
+  const cfgBody = document.getElementById('jobsConfigTableBody');
+  if (!state.jobs.length) {
+    dashBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--clr-text2)">No jobs configured</td></tr>';
+    cfgBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--clr-text2)">No backup locations configured</td></tr>';
+    return;
+  }
+  dashBody.innerHTML = state.jobs.map(job => {
+    const lr = jobLastRun(job.id);
+    const ok = lr?.status === 'success';
+    const badge = lr ? `<span class="badge badge-${ok ? 'success' : 'danger'}"><span class="status-dot ${ok ? 'ok' : 'error'}"></span>${esc(lr.status)}</span>` : '<span style="color:var(--clr-text2)">—</span>';
+    return `<tr>
+      <td><strong>${esc(job.name)}</strong></td>
+      <td>${formatPathPills(job.source_dir, jobRemote(job))}</td>
+      <td>${esc(humanSchedule(job.schedule))}</td>
+      <td style="color:var(--clr-text2)">${lr ? formatLastRunTime(lr.timestamp) : '—'}</td>
+      <td>${badge}</td>
+      <td><button class="btn btn-ghost btn-icon" onclick="startSync('${esc(job.id)}')" title="Sync job"><i class="ti ti-player-play"></i></button></td>
+    </tr>`;
+  }).join('');
+  cfgBody.innerHTML = state.jobs.map(job => `<tr>
+      <td><strong>${esc(job.name)}</strong></td>
+      <td>${formatPathPills(job.source_dir, jobRemote(job))}</td>
+      <td><div style="display:flex;gap:.35rem">
+        <button class="btn btn-ghost btn-sm" onclick="editJob('${esc(job.id)}')">Edit</button>
+        <button class="btn btn-danger-ghost btn-sm" onclick="deleteJob('${esc(job.id)}')">Delete</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function scheduleControlsHtml(jobId, currentCron) {
+  const p = parseCronToPicker(currentCron);
+  const timeVal = p.time || '03:00';
+  const dayOptions = SCHEDULE_DAYS.map((name, i) =>
+    `<option value="${i}"${String(p.day) === String(i) ? ' selected' : ''}>${name}</option>`
+  ).join('');
+  const showExtra = ['daily', 'weekly', 'custom'].includes(p.freq);
+  const options = SCHEDULE_OPTIONS.map(opt => `<button type="button" class="sched-option${p.freq === opt.freq ? ' selected' : ''}" data-freq="${opt.freq}">
+      <div class="sched-option-icon"><i class="ti ${opt.icon}"></i></div>
+      <div class="sched-option-text">
+        <div class="sched-option-title">${esc(opt.title)}</div>
+        <div class="sched-option-desc">${esc(opt.desc)}</div>
+      </div>
+      <i class="ti ti-circle-check sched-option-check"></i>
+    </button>`).join('');
+  return `<div class="sched-picker" data-job-id="${esc(jobId)}">
+    <input type="hidden" class="sched-freq-value" value="${esc(p.freq)}">
+    <div class="sched-modal-label">Run schedule</div>
+    <div class="sched-options">${options}</div>
+    <div class="sched-extra${showExtra ? '' : ' hidden'}">
+      <div class="sched-picker-row">
+        <select class="form-control sched-day${p.freq === 'weekly' ? '' : ' hidden'}" data-job-id="${esc(jobId)}" style="flex:1">${dayOptions}</select>
+        <div class="sched-time-row${['daily', 'weekly'].includes(p.freq) ? '' : ' hidden'}">${scheduleTimeSelectsHtml(timeVal)}</div>
+      </div>
+      <input type="text" class="form-control sched-custom${p.freq === 'custom' ? '' : ' hidden'}" data-job-id="${esc(jobId)}" placeholder="0 3 * * *" value="${p.freq === 'custom' ? esc(p.cron) : ''}">
+    </div>
+  </div>`;
+}
+
+function updateSchedPickerUI(jobId) {
+  const root = document.querySelector(`.sched-picker[data-job-id="${jobId}"]`);
+  if (!root) return;
+  const freq = getSchedFreq(jobId);
+  const hidden = root.querySelector('.sched-freq-value');
+  if (hidden) hidden.value = freq;
+  const extra = root.querySelector('.sched-extra');
+  const day = root.querySelector('.sched-day');
+  const timeRow = root.querySelector('.sched-time-row');
+  const custom = root.querySelector('.sched-custom');
+  const needsExtra = ['daily', 'weekly', 'custom'].includes(freq);
+  extra?.classList.toggle('hidden', !needsExtra);
+  day?.classList.toggle('hidden', freq !== 'weekly');
+  timeRow?.classList.toggle('hidden', freq !== 'daily' && freq !== 'weekly');
+  custom?.classList.toggle('hidden', freq !== 'custom');
+}
+
+function bindScheduleControls() {
+  document.querySelectorAll('.sched-picker .sched-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const picker = btn.closest('.sched-picker');
+      if (!picker) return;
+      picker.querySelectorAll('.sched-option').forEach(o => o.classList.remove('selected'));
+      btn.classList.add('selected');
+      const hidden = picker.querySelector('.sched-freq-value');
+      if (hidden) hidden.value = btn.dataset.freq;
+      updateSchedPickerUI(picker.dataset.jobId);
+    });
+  });
+  document.querySelectorAll('.sched-picker').forEach(picker => {
+    updateSchedPickerUI(picker.dataset.jobId);
+  });
+}
+
+function getScheduleFromControls(jobId) {
+  return cronFromPicker(jobId);
+}
+
+function updateScheduleBadges() {
+  state.jobs.forEach(job => {
+    const row = document.querySelector(`#schedulesTableBody tr[data-job-id="${job.id}"]`);
+    const badge = row?.querySelector('.sched-current-badge');
+    if (badge) badge.textContent = humanSchedule(job.schedule);
+  });
+}
+
+function maybeRefreshScheduleUI() {
+  const page = document.getElementById('page-schedule');
+  if (!page?.classList.contains('active')) return;
+  const rows = document.querySelectorAll('#schedulesTableBody tr[data-job-id]');
+  if (rows.length !== state.jobs.length) {
+    renderSchedulesTable();
+    return;
+  }
+  updateScheduleBadges();
+}
+
+function renderSchedulesTable() {
+  const empty = document.getElementById('scheduleEmpty');
+  const card = document.getElementById('scheduleCard');
+  const body = document.getElementById('schedulesTableBody');
+  const count = state.jobs.length;
+  if (!count) {
+    empty?.classList.remove('hidden');
+    card?.classList.add('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+  card?.classList.remove('hidden');
+  body.innerHTML = state.jobs.map(job => `<tr data-job-id="${esc(job.id)}">
+      <td><strong>${esc(job.name)}</strong></td>
+      <td>${formatPathPills(job.source_dir, jobRemote(job))}</td>
+      <td><span class="badge badge-muted sched-current-badge">${esc(humanSchedule(job.schedule))}</span></td>
+      <td><button class="btn btn-ghost btn-sm" type="button" data-edit-schedule="${esc(job.id)}"><i class="ti ti-edit"></i> Edit</button></td>
+    </tr>`).join('');
+}
+
+function openScheduleModal(jobId) {
+  const job = state.jobs.find(j => j.id === jobId);
+  if (!job) return;
+  scheduleEditJobId = jobId;
+  document.getElementById('scheduleModalTitle').textContent = 'Edit schedule';
+  document.getElementById('scheduleModalSub').textContent = job.name;
+  document.getElementById('scheduleModalBody').innerHTML = `
+    <div class="sched-modal-paths">${formatPathPills(job.source_dir, jobRemote(job), { highlightRemote: true })}</div>
+    ${scheduleControlsHtml(jobId, job.schedule || '')}`;
+  bindScheduleControls();
+  document.getElementById('scheduleModal').classList.remove('hidden');
+}
+
+function closeScheduleModal() {
+  scheduleEditJobId = null;
+  document.getElementById('scheduleModal').classList.add('hidden');
+  document.getElementById('scheduleModalBody').innerHTML = '';
+}
+
+async function saveJobSchedule(jobId) {
+  const job = state.jobs.find(j => j.id === jobId);
+  if (!job) return;
+  const schedule = getScheduleFromControls(jobId);
+  const r = await api('/jobs/' + encodeURIComponent(jobId), {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: job.name,
+      source_dir: job.source_dir,
+      remote_folder: jobRemote(job),
+      schedule,
+      enabled: job.enabled,
+    }),
+  });
+  if (r.error) { toast(r.error, 'error'); return; }
+  toast(`Schedule saved for ${job.name}`, 'success');
+  closeScheduleModal();
+  await refreshStatus();
+  renderSchedulesTable();
+}
+document.getElementById('schedulesTableBody').addEventListener('click', e => {
+  const btn = e.target.closest('[data-edit-schedule]');
+  if (btn) openScheduleModal(btn.dataset.editSchedule);
+});
+document.getElementById('btnScheduleModalClose').addEventListener('click', closeScheduleModal);
+document.getElementById('btnScheduleModalCancel').addEventListener('click', closeScheduleModal);
+document.getElementById('scheduleModalBackdrop').addEventListener('click', closeScheduleModal);
+document.getElementById('btnScheduleModalSave').addEventListener('click', () => {
+  if (scheduleEditJobId) saveJobSchedule(scheduleEditJobId);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && scheduleEditJobId) closeScheduleModal();
+});
+document.getElementById('btnRefreshSchedule').addEventListener('click', async () => {
+  await refreshStatus();
+  renderSchedulesTable();
+});
+document.getElementById('btnGoToBackupJobs').addEventListener('click', () => {
+  document.querySelector('.nav-item[data-page="config"]').click();
+});
+
+function updateSyncLiveExpandUI() {
+  const body = document.getElementById('syncLiveBody');
+  const chevron = document.getElementById('syncLiveChevron');
+  body.classList.toggle('hidden', !syncLiveExpanded);
+  if (chevron) chevron.className = 'ti ' + (syncLiveExpanded ? 'ti-chevron-up' : 'ti-chevron-down');
+}
+
+function toggleSyncLiveExpand() {
+  syncLiveExpanded = !syncLiveExpanded;
+  updateSyncLiveExpandUI();
+  if (syncLiveExpanded && state.running) updateSyncProgressPanel();
+}
+
+function findCurrentSyncStartIdx(lines) {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].includes('Starting multi-job sync')) return i;
+    if (/\[[^\]]+\] Sync started/.test(lines[i])) return Math.max(0, i - 1);
+  }
+  return 0;
+}
+
+function inferActiveSyncJobsFromLogs(lines) {
+  const startIdx = findCurrentSyncStartIdx(lines);
+  const recent = lines.slice(startIdx);
+  if (recent.some(l => l.includes('Starting multi-job sync'))) {
+    return state.jobs.filter(j => j.enabled).map(j => j.name);
+  }
+  const names = [];
+  for (const line of recent) {
+    const m = line.match(/\[([^\]]+)\] Sync started/);
+    if (m && !names.includes(m[1])) names.push(m[1]);
+  }
+  return names;
+}
+
+function parseLiveSyncProgress(lines) {
+  if (!activeSyncJobs.length) {
+    activeSyncJobs = inferActiveSyncJobsFromLogs(lines);
+  }
+  const jobMap = {};
+  activeSyncJobs.forEach(name => {
+    jobMap[name] = { name, status: 'pending' };
+  });
+  const startIdx = findCurrentSyncStartIdx(lines);
+  const recent = lines.slice(startIdx);
+  for (const line of recent) {
+    const started = line.match(/\[([^\]]+)\] Sync started/);
+    const completed = line.match(/\[([^\]]+)\] Sync completed/);
+    if (started && jobMap[started[1]]) jobMap[started[1]] = { name: started[1], status: 'running' };
+    if (completed && jobMap[completed[1]]) jobMap[completed[1]] = { name: completed[1], status: 'done' };
+    if (/ERROR|failed/i.test(line)) {
+      const m = line.match(/\[([^\]]+)\]/);
+      if (m && jobMap[m[1]]) jobMap[m[1]].status = 'error';
+    }
+  }
+  return { jobs: Object.values(jobMap), recentLines: recent.slice(-30) };
+}
+
+function renderSyncJobProgress(jobs) {
+  const icons = { pending: 'ti-clock', running: 'ti-loader', done: 'ti-circle-check', error: 'ti-alert-circle' };
+  const colors = { pending: 'var(--clr-text2)', running: 'var(--clr-warn)', done: 'var(--clr-success)', error: 'var(--clr-danger)' };
+  if (!jobs.length) return '<div style="color:var(--clr-text2);font-size:.875rem">No jobs to run</div>';
+  return jobs.map(j => `<div class="sync-job-item">
+    <i class="ti ${icons[j.status] || 'ti-clock'}" style="color:${colors[j.status]}"></i>
+    <span style="flex:1">${esc(j.name)}</span>
+    <span class="badge badge-muted" style="text-transform:capitalize">${esc(j.status)}</span>
+  </div>`).join('');
+}
+
+async function updateSyncProgressPanel() {
+  if (!state.running) return;
+  try {
+    const d = await api('/logs?lines=200');
+    const { jobs, recentLines } = parseLiveSyncProgress(d.lines || []);
+    const done = jobs.filter(j => j.status === 'done').length;
+    const running = jobs.find(j => j.status === 'running');
+    const errors = jobs.filter(j => j.status === 'error').length;
+    let summary = running ? `Running: ${running.name}` : (done ? `${done}/${jobs.length} done` : 'Starting…');
+    if (errors) summary += ` · ${errors} error${errors > 1 ? 's' : ''}`;
+    document.getElementById('syncLiveSummary').textContent = summary;
+    document.getElementById('syncJobProgress').innerHTML = renderSyncJobProgress(jobs);
+    const logEl = document.getElementById('syncLiveLogs');
+    if (recentLines.length) {
+      logEl.innerHTML = recentLines.map(line => {
+        let cls = line.match(/ERROR|failed/i) ? 'log-line-error' : line.match(/completed/i) ? 'log-line-success' : '';
+        const short = line.replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - /, '');
+        return `<div class="${cls}">${esc(short)}</div>`;
+      }).join('');
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  } catch (_) { /* ignore poll errors */ }
+}
+
+function startSyncLogPoll() {
+  stopSyncLogPoll();
+  syncLogPollTimer = setInterval(() => {
+    if (state.running) updateSyncProgressPanel();
+    else stopSyncLogPoll();
+  }, 1500);
+}
+
+function stopSyncLogPoll() {
+  if (syncLogPollTimer) { clearInterval(syncLogPollTimer); syncLogPollTimer = null; }
+}
+
+// Sync
+document.getElementById('btnSyncNow').addEventListener('click', () => startSync());
+document.getElementById('btnRefreshDash').addEventListener('click', refreshStatus);
+document.getElementById('btnRefreshStats').addEventListener('click', refreshStatsPage);
+document.getElementById('btnStopSync').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  await api('/sync/stop', { method: 'POST' });
+  toast('Sync stopped');
+  refreshStatus();
+});
+document.getElementById('syncLiveToggle').addEventListener('click', toggleSyncLiveExpand);
+document.getElementById('btnSyncLiveExpand').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleSyncLiveExpand();
+});
+
+async function startSync(jobId = null) {
+  if (!state.configured) { toast('Connect Proton Drive first', 'error'); return; }
+  if (state.running) { toast('Sync already running', 'error'); return; }
+  if (!state.jobs.length) { toast('Add at least one backup job first', 'error'); return; }
+  activeSyncJobs = jobId
+    ? state.jobs.filter(j => j.id === jobId).map(j => j.name)
+    : state.jobs.filter(j => j.enabled).map(j => j.name);
+  await api('/sync/start', { method: 'POST', body: JSON.stringify(jobId ? { job_id: jobId } : {}) });
+  toast(jobId ? 'Job sync started!' : 'Sync started!', 'success');
+  state.running = true;
+  syncLiveExpanded = true;
+  document.getElementById('syncLiveSummary').textContent = 'Starting…';
+  document.getElementById('syncJobProgress').innerHTML = renderSyncJobProgress(
+    activeSyncJobs.map(name => ({ name, status: 'pending' }))
+  );
+  document.getElementById('syncLiveLogs').innerHTML = 'Waiting for log output…';
+  refreshStatus();
+  startSyncLogPoll();
+  const poll = setInterval(async () => {
+    const d = await api('/status');
+    state.running = d.sync_running;
+    state.lastRun = d.last_run;
+    if (state.running) updateSyncProgressPanel();
+    if (!state.running) {
+      clearInterval(poll);
+      stopSyncLogPoll();
+      activeSyncJobs = [];
+      refreshStatus();
+      toast(d.last_run?.status === 'success' ? 'Sync complete!' : 'Sync finished with errors', d.last_run?.status === 'success' ? 'success' : 'error');
+    }
+  }, 2000);
+}
+
+// Auth
+document.getElementById('btnConnect').addEventListener('click', async () => {
+  const user = document.getElementById('authUser').value.trim();
+  const pass = document.getElementById('authPass').value;
+  if (!user || !pass) { toast('Username and password required', 'error'); return; }
+  document.getElementById('authMessages').innerHTML = '';
+  const btn = document.getElementById('btnConnect');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Connecting…';
+  await api('/auth/start', { method: 'POST', body: JSON.stringify({ username: user, password: pass }) });
+  clearInterval(authPollTimer);
+  authPollTimer = setInterval(async () => {
+    const d = await api('/auth/poll');
+    document.getElementById('authMessages').innerHTML = d.messages.map(m => `<div class="auth-msg ${m.type}">${esc(m.msg)}</div>`).join('');
+    if (d.done) {
+      clearInterval(authPollTimer);
+      btn.disabled = false; btn.innerHTML = '<i class="ti ti-plug-connected"></i> Connect';
+      if (d.configured) { toast('Connected!', 'success'); refreshStatus(); }
+    }
+  }, 800);
+});
+document.getElementById('btnDisconnect').addEventListener('click', async () => {
+  if (!confirm('Disconnect Proton Drive?')) return;
+  await api('/auth/clear', { method: 'POST' }); toast('Disconnected'); refreshStatus();
+});
+document.getElementById('btnReauth').addEventListener('click', () => {
+  document.getElementById('authConnectedBox').classList.add('hidden');
+  document.getElementById('authForm').classList.remove('hidden');
+});
+
+// File browser
+function formatBytes(bytes) {
+  if (!bytes) return '0 B';
+  const u = ['B','KB','MB','GB']; let n = bytes, i = 0;
+  while (n >= 1024 && i < u.length-1) { n /= 1024; i++; }
+  return `${n.toFixed(n >= 10 || i === 0 ? 0 : 1)} ${u[i]}`;
+}
+function setBrowseSelection(path, suggestedRemote) {
+  browseState.selectedPath = path; browseState.suggestedRemote = suggestedRemote;
+  document.getElementById('btnUseBrowsePath').disabled = !path;
+  document.querySelectorAll('#fileBrowser .browse-row.dir').forEach(r => r.classList.toggle('selected', r.dataset.path === path));
+}
+function bindBrowseDirRows(browser) {
+  browser.querySelectorAll('.browse-row.dir').forEach(row => {
+    row.addEventListener('click', () => loadFileBrowser(row.dataset.path));
+  });
+}
+
+function renderBrowseEntries(data) {
+  const dirs = data.entries.filter(e => e.type === 'dir');
+  const files = data.entries.filter(e => e.type === 'file');
+  const rows = [];
+  if (data.parent) {
+    rows.push(`<div class="browse-row dir up" data-path="${esc(data.parent)}"><i class="ti ti-arrow-back-up" style="color:var(--clr-text2)"></i><span class="browse-name">..</span><span class="browse-meta">parent folder</span></div>`);
+  }
+  rows.push(
+    ...dirs.map(e => `<div class="browse-row dir" data-path="${esc(e.path)}"><i class="ti ti-folder" style="color:#fbbf24"></i><span class="browse-name">${esc(e.name)}</span><span class="browse-meta">folder</span></div>`),
+    ...files.map(e => `<div class="browse-row"><i class="ti ti-file" style="color:var(--clr-text2)"></i><span class="browse-name">${esc(e.name)}</span><span class="browse-meta">${formatBytes(e.size)}</span></div>`),
+  );
+  return rows.join('');
+}
+
+async function loadFileBrowser(path) {
+  const browser = document.getElementById('fileBrowser');
+  browser.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--clr-text2)">Loading…</div>';
+  const q = path ? `?path=${encodeURIComponent(path)}` : '';
+  const data = await api('/browse' + q);
+  if (data.error) { browser.innerHTML = `<div style="text-align:center;padding:2rem;color:var(--clr-danger)">${esc(data.error)}</div>`; return; }
+  browseState.path = data.path;
+  browseState.parent = data.parent;
+  document.getElementById('browseCurrentPath').textContent = data.path;
+  setBrowseSelection(data.path, data.suggested_remote_folder);
+  const dirs = data.entries.filter(e => e.type === 'dir');
+  const files = data.entries.filter(e => e.type === 'file');
+  if (!dirs.length && !files.length && !data.parent) {
+    browser.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--clr-text2)">Empty folder — you can still back it up.</div>';
+    return;
+  }
+  if (!dirs.length && !files.length) {
+    browser.innerHTML = renderBrowseEntries(data) + '<div style="text-align:center;padding:1rem;color:var(--clr-text2);font-size:.8rem;border-top:1px solid var(--bdr)">Empty folder — you can still back it up.</div>';
+  } else {
+    browser.innerHTML = renderBrowseEntries(data);
+  }
+  bindBrowseDirRows(browser);
+}
+document.getElementById('btnBrowseRefresh').addEventListener('click', () => loadFileBrowser(browseState.path));
+document.getElementById('btnUseBrowsePath').addEventListener('click', () => {
+  if (!browseState.selectedPath) return;
+  document.getElementById('jobSourceInput').value = browseState.selectedPath;
+  if (!document.getElementById('jobRemoteInput').value.trim()) document.getElementById('jobRemoteInput').value = browseState.suggestedRemote || '';
+  if (!document.getElementById('jobNameInput').value.trim()) document.getElementById('jobNameInput').value = browseState.selectedPath.split('/').filter(Boolean).pop() || 'Backup';
+  toast('Folder selected', 'success');
+});
+
+// Jobs
+function clearJobForm() {
+  document.getElementById('jobEditId').value = '';
+  document.getElementById('jobNameInput').value = '';
+  document.getElementById('jobSourceInput').value = '';
+  document.getElementById('jobRemoteInput').value = '';
+  document.getElementById('jobFormTitle').textContent = 'Add Backup Location';
+  document.getElementById('btnSaveJobLabel').textContent = 'Add Location';
+  document.querySelector('#btnSaveJob i').className = 'ti ti-plus';
+  document.getElementById('btnCancelEdit').classList.add('hidden');
+  browseState.selectedPath = null;
+}
+function editJob(jobId) {
+  const job = state.jobs.find(j => j.id === jobId);
+  if (!job) return;
+  document.getElementById('jobEditId').value = job.id;
+  document.getElementById('jobNameInput').value = job.name;
+  document.getElementById('jobSourceInput').value = job.source_dir;
+  document.getElementById('jobRemoteInput').value = jobRemote(job);
+  document.getElementById('jobFormTitle').textContent = 'Edit Backup Location';
+  document.getElementById('btnSaveJobLabel').textContent = 'Save Changes';
+  document.querySelector('#btnSaveJob i').className = 'ti ti-device-floppy';
+  document.getElementById('btnCancelEdit').classList.remove('hidden');
+  document.querySelector('.nav-item[data-page="config"]').click();
+  loadFileBrowser(job.source_dir);
+}
+async function deleteJob(jobId) {
+  const job = state.jobs.find(j => j.id === jobId);
+  if (!job || !confirm(`Delete "${job.name}"?`)) return;
+  await api('/jobs/' + encodeURIComponent(jobId), { method: 'DELETE' });
+  toast('Job deleted', 'success');
+  if (document.getElementById('jobEditId').value === jobId) clearJobForm();
+  refreshStatus();
+}
+document.getElementById('btnSaveJob').addEventListener('click', async () => {
+  const editId = document.getElementById('jobEditId').value.trim();
+  const existing = editId ? state.jobs.find(j => j.id === editId) : null;
+  const payload = {
+    name: document.getElementById('jobNameInput').value.trim(),
+    source_dir: document.getElementById('jobSourceInput').value.trim(),
+    remote_folder: document.getElementById('jobRemoteInput').value.trim(),
+    schedule: existing ? (existing.schedule || null) : null,
+    enabled: true,
+  };
+  if (!payload.name || !payload.source_dir || !payload.remote_folder) { toast('All fields required', 'error'); return; }
+  let r;
+  if (editId) { r = await api('/jobs/' + encodeURIComponent(editId), { method: 'PUT', body: JSON.stringify(payload) }); }
+  else { r = await api('/jobs', { method: 'POST', body: JSON.stringify(payload) }); }
+  if (r.error) { toast(r.error, 'error'); return; }
+  toast(editId ? 'Job updated!' : 'Job added!', 'success');
+  clearJobForm(); refreshStatus();
+});
+document.getElementById('btnCancelEdit').addEventListener('click', clearJobForm);
+
+// Logs — grouped by sync run
+function ensureLogJob(run, name) {
+  if (!run.jobs[name]) {
+    run.jobs[name] = { name, lines: [], changed: 0, deleted: 0, ok: true };
+    run.jobOrder.push(name);
+  }
+  return run.jobs[name];
+}
+
+function parseLogRuns(lines) {
+  const runs = [];
+  let current = null;
+  for (const line of lines) {
+    if (!line.trim() || line.match(/#{10}/)) continue;
+    if (line.includes('Starting multi-job sync') || line.includes('Sync started')) {
+      current = { header: line, jobs: {}, jobOrder: [], lines: [line] };
+      runs.push(current);
+      const started = line.match(/\[([^\]]+)\] Sync started/);
+      if (started) ensureLogJob(current, started[1]).lines.push(line);
+      continue;
+    }
+    if (!current) continue;
+    current.lines.push(line);
+    const m = line.match(/\[([^\]]+)\] Sync (started|completed).*new\/changed=(\d+).*deleted=(\d+)/);
+    if (m) {
+      const [, name, phase, changed, deleted] = m;
+      const job = ensureLogJob(current, name);
+      job.lines.push(line);
+      if (phase === 'completed') { job.changed = Number(changed); job.deleted = Number(deleted); }
+      if (line.match(/ERROR|failed/i)) job.ok = false;
+    } else {
+      const tag = line.match(/\[([^\]]+)\]/);
+      if (tag && current.jobs[tag[1]]) {
+        current.jobs[tag[1]].lines.push(line);
+        if (line.match(/ERROR|failed/i)) current.jobs[tag[1]].ok = false;
+      }
+    }
+  }
+  return runs.reverse();
+}
+
+function renderLogRunsHtml(runs) {
+  return runs.map((run, ri) => {
+    const ts = run.header.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+    const time = ts ? ts[1] : 'Sync run';
+    const jobs = run.jobOrder.map(n => run.jobs[n]).filter(Boolean);
+    const allOk = jobs.length ? jobs.every(j => j.ok) : !run.lines.some(l => l.match(/ERROR|failed/i));
+    const badge = `<span class="badge badge-${allOk ? 'success' : 'danger'}">${allOk ? 'All succeeded' : 'Errors'}</span>`;
+    const jobRows = jobs.map((j, ji) => {
+      const srcLine = j.lines.find(l => l.includes('source=')) || '';
+      const srcM = srcLine.match(/source=([^|]+)\| remote=(\S+)/);
+      const pathStr = srcM ? `${srcM[1].trim()} → ${srcM[2].replace('protondrive:','')}` : j.name;
+      const detail = j.lines.map(l => {
+        const cls = l.match(/ERROR|failed/i) ? 'log-line-error' : l.match(/completed/i) ? 'log-line-success' : '';
+        const short = l.replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - /, '').replace(/^\[[^\]]+\] /, '');
+        return `<div class="${cls}">${esc(short)}</div>`;
+      }).join('');
+      return `<div class="log-job">
+        <div class="log-job-hd">
+          <i class="ti ti-circle-check" style="color:var(--clr-${j.ok ? 'success' : 'danger'})"></i>
+          <strong>${esc(j.name)}</strong>
+          <span class="path-pill" style="font-size:.75rem">${esc(pathStr)}</span>
+          <span style="margin-left:auto;color:var(--clr-text2);font-size:.8rem">${j.changed} new · ${j.deleted} del</span>
+        </div>
+        <div class="log-job-detail">${detail}</div>
+      </div>`;
+    }).join('');
+    return `<div class="log-run${ri === 0 ? ' open' : ''}" data-ri="${ri}">
+      <div class="log-run-hd" onclick="toggleLogRun(${ri})">
+        <i class="ti ti-history" style="color:var(--clr-accent)"></i>
+        <span class="log-run-time">${esc(time)}</span>
+        ${badge}
+        <span class="log-run-meta">${jobs.length} job${jobs.length === 1 ? '' : 's'}</span>
+        <i class="ti ti-chevron-down" style="color:var(--clr-text2);margin-left:auto"></i>
+      </div>
+      <div class="log-run-body">${jobRows || '<div style="padding:1rem;color:var(--clr-text2)">No job details</div>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateLogPagination(totalRuns) {
+  const bar = document.getElementById('logPagination');
+  const totalPages = Math.max(1, Math.ceil(totalRuns / LOGS_PER_PAGE));
+  if (logsPage >= totalPages) logsPage = totalPages - 1;
+  if (logsPage < 0) logsPage = 0;
+  if (totalRuns <= LOGS_PER_PAGE) {
+    bar.classList.add('hidden');
+    return;
+  }
+  bar.classList.remove('hidden');
+  const start = logsPage * LOGS_PER_PAGE + 1;
+  const end = Math.min(start + LOGS_PER_PAGE - 1, totalRuns);
+  document.getElementById('logPageInfo').textContent = `${start}–${end} of ${totalRuns}`;
+  document.getElementById('btnLogsPrev').disabled = logsPage === 0;
+  document.getElementById('btnLogsNext').disabled = logsPage >= totalPages - 1;
+}
+
+function renderLogPage() {
+  const el = document.getElementById('logViewer');
+  const start = logsPage * LOGS_PER_PAGE;
+  const pageRuns = allLogRuns.slice(start, start + LOGS_PER_PAGE);
+  el.innerHTML = renderLogRunsHtml(pageRuns);
+  updateLogPagination(allLogRuns.length);
+}
+
+async function loadLogs() {
+  const el = document.getElementById('logViewer');
+  const bar = document.getElementById('logPagination');
+  try {
+    const d = await api('/logs?lines=500');
+    if (!d.lines?.length) {
+      allLogRuns = [];
+      logsPage = 0;
+      bar.classList.add('hidden');
+      el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--clr-text2)">No logs yet</div>';
+      return;
+    }
+    allLogRuns = parseLogRuns(d.lines);
+    if (!allLogRuns.length) {
+      bar.classList.add('hidden');
+      el.innerHTML = d.lines.map(line => {
+        let cls = line.match(/ERROR|failed/i) ? 'log-line-error' : line.match(/completed|success/i) ? 'log-line-success' : '';
+        return `<div class="${cls}" style="font-family:monospace;font-size:.78rem;padding:.15rem 0">${esc(line)}</div>`;
+      }).join('');
+      return;
+    }
+    logsPage = 0;
+    renderLogPage();
+  } catch (err) {
+    bar.classList.add('hidden');
+    el.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--clr-danger)">Failed to load logs</div>';
+    console.error(err);
+  }
+}
+function toggleLogRun(ri) { document.querySelector(`.log-run[data-ri="${ri}"]`).classList.toggle('open'); }
+
+async function loadPathSettings() {
+  try {
+    const d = await api('/settings/paths');
+    document.getElementById('pathSettingsSource').value = d.source_dir || '';
+    document.getElementById('pathSettingsRemote').value = d.remote_folder || '';
+    const locked = !!d.locked;
+    document.getElementById('pathSettingsLockedNote').classList.toggle('hidden', !locked);
+    document.getElementById('pathSettingsSource').disabled = locked;
+    document.getElementById('pathSettingsRemote').disabled = locked;
+    document.getElementById('btnSavePathSettings').classList.toggle('hidden', locked);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function savePathSettings() {
+  const source_dir = document.getElementById('pathSettingsSource').value.trim();
+  const remote_folder = document.getElementById('pathSettingsRemote').value.trim();
+  if (!source_dir || !remote_folder) {
+    toast('Source directory and Proton Drive folder are required', 'error');
+    return;
+  }
+  try {
+    await api('/settings/paths', {
+      method: 'PUT',
+      body: JSON.stringify({ source_dir, remote_folder }),
+    });
+    toast('Path settings saved', 'success');
+    await refreshStatus();
+    renderJobsTables();
+    renderSchedulesTable();
+  } catch (err) {
+    toast(err.message || 'Save failed', 'error');
+  }
+}
+
+async function downloadConfigBackup() {
+  try {
+    const r = await fetch('/api/config/export', { credentials: 'same-origin' });
+    if (r.status === 401) { showLogin(); return; }
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      toast(d.error || 'Export failed', 'error');
+      return;
+    }
+    const blob = await r.blob();
+    const disp = r.headers.get('Content-Disposition') || '';
+    const filename = disp.match(/filename="([^"]+)"/)?.[1] || 'proton-sync-config.zip';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Config backup downloaded', 'success');
+  } catch (err) {
+    toast('Export failed', 'error');
+    console.error(err);
+  }
+}
+
+async function restoreConfigBackup() {
+  const input = document.getElementById('configImportFile');
+  const file = input.files?.[0];
+  if (!file) { toast('Select a backup zip file', 'error'); return; }
+  if (!confirm('This replaces credentials, jobs, and sync state. Continue?')) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/config/import', { method: 'POST', credentials: 'same-origin', body: fd });
+    if (r.status === 401) { showLogin(); return; }
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || d.message || 'Restore failed', 'error'); return; }
+    input.value = '';
+    document.getElementById('configImportFileName').textContent = 'No file selected';
+    toast(d.message || 'Config restored', 'success');
+    await refreshStatus();
+    renderJobsTables();
+    renderSchedulesTable();
+    loadPathSettings();
+  } catch (err) {
+    toast('Restore failed', 'error');
+    console.error(err);
+  }
+}
+
+document.getElementById('btnSavePathSettings').addEventListener('click', savePathSettings);
+document.getElementById('btnConfigExport').addEventListener('click', downloadConfigBackup);
+document.getElementById('btnConfigImport').addEventListener('click', restoreConfigBackup);
+document.getElementById('configImportFile').addEventListener('change', e => {
+  const name = e.target.files?.[0]?.name;
+  document.getElementById('configImportFileName').textContent = name || 'No file selected';
+});
+
+document.getElementById('btnRefreshLogs').addEventListener('click', loadLogs);
+document.getElementById('btnClearLogs').addEventListener('click', async () => { await api('/logs/clear', { method: 'POST' }); loadLogs(); toast('Logs cleared'); });
+document.getElementById('btnLogsPrev').addEventListener('click', () => { if (logsPage > 0) { logsPage--; renderLogPage(); } });
+document.getElementById('btnLogsNext').addEventListener('click', () => {
+  const totalPages = Math.ceil(allLogRuns.length / LOGS_PER_PAGE);
+  if (logsPage < totalPages - 1) { logsPage++; renderLogPage(); }
+});
+
+checkSession().then(async ok => {
+  if (!ok) return;
+  await refreshStatus();
+  if (state.running) { syncLiveExpanded = true; updateSyncLiveExpandUI(); startSyncLogPoll(); }
+  statusPollTimer = setInterval(refreshStatus, 10000);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.git
+.github
+*.md
+.env
+docker-compose.yml
+example.docker-compose.yml
+example.env
+LICENSE

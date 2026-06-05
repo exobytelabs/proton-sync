@@ -1,0 +1,26 @@
+# Example compose file — copy and edit before use:
+#   cp example.docker-compose.yml docker-compose.yml
+#   cp example.env .env
+#   docker compose pull
+#   docker compose up -d
+
+services:
+  proton-sync:
+    image: ghcr.io/xman601/proton-sync:latest
+    container_name: proton-sync
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /path/to/your/dataset:/data:ro
+      - /path/to/your/config:/config
+    environment:
+      - TZ=${TZ}
+      - UI_USERNAME=${UI_USERNAME}
+      - UI_PASSWORD=${UI_PASSWORD}
+      # Optional — uncomment in .env and here to lock paths via compose
+      # - PROTON_SYNC_PATHS_LOCKED=${PROTON_SYNC_PATHS_LOCKED}
+      # - SOURCE_DIR=${SOURCE_DIR}
+      # - REMOTE_PATH=${REMOTE_PATH}
+      # Optional — persist Flask sessions across container recreates
+      # - SECRET_KEY=${SECRET_KEY}
