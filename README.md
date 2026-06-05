@@ -2,7 +2,7 @@
 
 A self-contained Docker app that backs up local datasets to [Proton Drive](https://proton.me/drive), managed through a web UI. Built for TrueNAS and other Docker hosts.
 
-**Container image:** `ghcr.io/xman601/proton-sync:latest`
+**Container image:** `ghcr.io/exobytelabs/proton-sync:latest`
 
 ## Features
 
