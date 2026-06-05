@@ -6,7 +6,7 @@
 
 services:
   proton-sync:
-    image: ghcr.io/xman601/proton-sync:latest
+    image: ghcr.io/exobytelabs/proton-sync:latest
     container_name: proton-sync
     restart: unless-stopped
     ports:
