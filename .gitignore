@@ -4,3 +4,4 @@ LOCAL.md
 
 __pycache__/
 *.py[cod]
+proton-sync/

@@ -9,6 +9,15 @@ SYNC_JOB_SCRIPT="/scripts/sync-job.sh"
 
 mkdir -p "$(dirname "$LOG_FILE")"
 
+append_log_line() {
+    echo "$1" >> "$LOG_FILE"
+    echo "$1" >&2
+}
+
+log_separator() {
+    append_log_line "$(printf '#%.0s' {1..80})"
+}
+
 run_job() {
     local job_id="$1"
     local job_name="$2"
@@ -106,14 +115,14 @@ if [ -n "${JOB_ID:-}" ] && [ -n "${SOURCE_DIR:-}" ] && [ -n "${REMOTE_PATH:-}" ]
 fi
 
 if [ ! -f "$JOBS_FILE" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - ERROR: No jobs configured ($JOBS_FILE missing)" >> "$LOG_FILE"
+    append_log_line "$(date '+%Y-%m-%d %H:%M:%S') - ERROR: No jobs configured ($JOBS_FILE missing)"
     exit 1
 fi
 
-echo "" >> "$LOG_FILE"
-printf "#%.0s" {1..80} >> "$LOG_FILE"; echo >> "$LOG_FILE"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting multi-job sync" >> "$LOG_FILE"
-printf "#%.0s" {1..80} >> "$LOG_FILE"; echo >> "$LOG_FILE"
+append_log_line ""
+log_separator
+append_log_line "$(date '+%Y-%m-%d %H:%M:%S') - Starting multi-job sync"
+log_separator
 
 EXIT_CODE=0
 RAN_JOB_IDS=()

@@ -112,6 +112,7 @@ def cron_comment_for(job_id: str) -> str:
 def job_cron_command(job: dict) -> str:
     log_file = CONFIG_DIR / "logs" / "cron.log"
     return (
+        f"PATH=/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin "
         f"JOB_ID={shlex.quote(job['id'])} "
         f"JOB_NAME={shlex.quote(job['name'])} "
         f"SOURCE_DIR={shlex.quote(job['source_dir'])} "

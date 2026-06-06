@@ -1,22 +1,27 @@
 FROM debian:bookworm-slim
 
-# Install system deps
+# Install system deps (python3-venv only — app runs from /venv, not system pip)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl unzip ca-certificates \
     sqlite3 \
-    python3 python3-pip python3-venv \
+    python3 python3-venv \
     cron \
     tzdata \
     bash findutils \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -rf \
+    /usr/lib/python3/dist-packages/pip* \
+    /usr/lib/python3/dist-packages/setuptools* \
+    /usr/lib/python3/dist-packages/pkg_resources*
 
 # Install rclone
 RUN curl https://rclone.org/install.sh | bash
 
-# Python venv
+# Python venv — upgrade pip/setuptools to avoid known CVEs in bundled versions
 RUN python3 -m venv /venv
 ENV PATH="/venv/bin:$PATH"
-RUN pip install --no-cache-dir flask python-crontab gunicorn
+RUN pip install --no-cache-dir --upgrade "pip>=26.1.2" "setuptools>=78.1.1" \
+  && pip install --no-cache-dir flask python-crontab gunicorn
 
 WORKDIR /app
 

@@ -589,6 +589,7 @@ select.form-control option { background: var(--bg-card); color: var(--clr-text);
 }
 .log-line-error { color: var(--clr-danger); }
 .log-line-success { color: var(--clr-success); }
+.log-line-info { color: var(--clr-accent); }
 .log-pagination {
   display: flex; align-items: center; justify-content: center;
   gap: 1rem; margin-top: 1rem; padding: .75rem 0;
@@ -1932,6 +1933,7 @@ function parseLiveSyncProgress(lines) {
   });
   const startIdx = findCurrentSyncStartIdx(lines);
   const recent = lines.slice(startIdx);
+  let transferStats = '';
   for (const line of recent) {
     const started = line.match(/\[([^\]]+)\] Sync started/);
     const completed = line.match(/\[([^\]]+)\] Sync completed/);
@@ -1941,8 +1943,11 @@ function parseLiveSyncProgress(lines) {
       const m = line.match(/\[([^\]]+)\]/);
       if (m && jobMap[m[1]]) jobMap[m[1]].status = 'error';
     }
+    if (/Transferred:/i.test(line) || /\d+%.*ETA/i.test(line)) {
+      transferStats = line.replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - (\[[^\]]+\] )?/, '');
+    }
   }
-  return { jobs: Object.values(jobMap), recentLines: recent.slice(-30) };
+  return { jobs: Object.values(jobMap), recentLines: recent.slice(-80), transferStats };
 }
 
 function renderSyncJobProgress(jobs) {
@@ -1959,19 +1964,26 @@ function renderSyncJobProgress(jobs) {
 async function updateSyncProgressPanel() {
   if (!state.running) return;
   try {
-    const d = await api('/logs?lines=200');
-    const { jobs, recentLines } = parseLiveSyncProgress(d.lines || []);
+    const d = await api('/logs?lines=400');
+    const { jobs, recentLines, transferStats } = parseLiveSyncProgress(d.lines || []);
     const done = jobs.filter(j => j.status === 'done').length;
     const running = jobs.find(j => j.status === 'running');
     const errors = jobs.filter(j => j.status === 'error').length;
     let summary = running ? `Running: ${running.name}` : (done ? `${done}/${jobs.length} done` : 'Starting…');
+    if (transferStats) {
+      const short = transferStats.replace(/^[\d/]+\s[\d:]+\s+(INFO|NOTICE)\s*:\s*/i, '');
+      summary += ` · ${short}`;
+    }
     if (errors) summary += ` · ${errors} error${errors > 1 ? 's' : ''}`;
     document.getElementById('syncLiveSummary').textContent = summary;
     document.getElementById('syncJobProgress').innerHTML = renderSyncJobProgress(jobs);
     const logEl = document.getElementById('syncLiveLogs');
     if (recentLines.length) {
       logEl.innerHTML = recentLines.map(line => {
-        let cls = line.match(/ERROR|failed/i) ? 'log-line-error' : line.match(/completed/i) ? 'log-line-success' : '';
+        let cls = line.match(/ERROR|failed/i) ? 'log-line-error'
+          : line.match(/completed|Upload phase complete/i) ? 'log-line-success'
+          : line.match(/Transferred:|Copied|Scan complete|Uploading/i) ? 'log-line-info'
+          : '';
         const short = line.replace(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - /, '');
         return `<div class="${cls}">${esc(short)}</div>`;
       }).join('');
@@ -1985,7 +1997,7 @@ function startSyncLogPoll() {
   syncLogPollTimer = setInterval(() => {
     if (state.running) updateSyncProgressPanel();
     else stopSyncLogPoll();
-  }, 1500);
+  }, 1000);
 }
 
 function stopSyncLogPoll() {

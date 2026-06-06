@@ -38,12 +38,14 @@ if [ -n "${UI_PASSWORD:-}" ]; then
 else
   echo "  UI Auth: disabled (set UI_PASSWORD to enable)"
 fi
+echo "  Sync logs: /config/logs/sync.log (mirrored to docker logs during sync)"
 echo "=========================="
 
 exec gunicorn \
   --bind 0.0.0.0:8080 \
   --workers 1 \
   --timeout 300 \
-  --access-logfile - \
+  --access-logfile /dev/null \
   --error-logfile - \
+  --log-level info \
   "server:app"

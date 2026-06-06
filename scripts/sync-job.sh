@@ -17,15 +17,67 @@ DB_FILE="$DB_DIR/file_tracker.db"
 FOLDER_DB_FILE="$DB_DIR/folder_tracker.db"
 STDERR_FILE="$DB_DIR/rclone_stderr.txt"
 
+RCLONE_LIVE_LOG="$DB_DIR/rclone_live.log"
+RCLONE_STREAM_PID=""
+RCLONE_LOG_ARGS=(--log-format "date,time" --log-level INFO --stats 5s)
+
+# Mirror sync.log lines to stderr so `docker logs` matches the web UI Logs view.
+append_log_line() {
+    local line="$1"
+    echo "$line" >> "$LOG_FILE"
+    echo "$line" >&2
+}
+
+append_log_raw() {
+    append_log_line "$1"
+}
+
+log_separator() {
+    append_log_raw "$(printf '#%.0s' {1..80})"
+}
+
+stream_rclone_log() {
+    local src="$1"
+    : > "$src"
+    (
+        tail -n 0 -f "$src" 2>/dev/null | while IFS= read -r line || [ -n "$line" ]; do
+            echo "$line" | grep -q "A file or folder with that name already exists (Code=2500, Status=422)" && continue
+            append_log_line "$(date '+%Y-%m-%d %H:%M:%S') - [$JOB_NAME] $line"
+        done
+    ) &
+    RCLONE_STREAM_PID=$!
+}
+
+stop_rclone_log_stream() {
+    if [ -n "${RCLONE_STREAM_PID:-}" ]; then
+        kill "$RCLONE_STREAM_PID" 2>/dev/null || true
+        wait "$RCLONE_STREAM_PID" 2>/dev/null || true
+        RCLONE_STREAM_PID=""
+    fi
+    sleep 0.2
+}
+
+run_rclone_logged() {
+    local live_log="$1"
+    shift
+    stream_rclone_log "$live_log"
+    if "$@" --log-file="$live_log" "${RCLONE_LOG_ARGS[@]}" 2>"$STDERR_FILE"; then
+        stop_rclone_log_stream
+        return 0
+    fi
+    stop_rclone_log_stream
+    return 1
+}
+
 write_log() {
     if [ -f "$1" ]; then
         while IFS= read -r line; do
             if ! echo "$line" | grep -q "A file or folder with that name already exists (Code=2500, Status=422)"; then
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - [$JOB_NAME] $line" >> "$LOG_FILE"
+                append_log_line "$(date '+%Y-%m-%d %H:%M:%S') - [$JOB_NAME] $line"
             fi
         done < "$1"
     else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - [$JOB_NAME] $1" >> "$LOG_FILE"
+        append_log_line "$(date '+%Y-%m-%d %H:%M:%S') - [$JOB_NAME] $1"
     fi
 }
 
@@ -79,16 +131,16 @@ rclone_error_summary() {
     echo "$fallback"
 }
 
-echo "" >> "$LOG_FILE"
-printf "#%.0s" {1..80} >> "$LOG_FILE"; echo >> "$LOG_FILE"
+append_log_raw ""
+log_separator
 write_log "Sync started | source=$SOURCE_DIR | remote=$REMOTE_PATH"
-printf "#%.0s" {1..80} >> "$LOG_FILE"; echo >> "$LOG_FILE"
+log_separator
 
 log_footer() {
-    printf "#%.0s" {1..80} >> "$LOG_FILE"; echo >> "$LOG_FILE"
+    log_separator
     write_log "Sync completed | new/changed=$NEW_CHANGED_COUNT | deleted=$DELETED_COUNT | deleted_folders=$DELETED_FOLDER_COUNT"
-    printf "#%.0s" {1..80} >> "$LOG_FILE"; echo >> "$LOG_FILE"
-    echo "" >> "$LOG_FILE"
+    log_separator
+    append_log_raw ""
 }
 
 write_last_run_error() {
@@ -134,7 +186,10 @@ INSERT INTO metadata (key, value) VALUES ('last_run_time', 0);
 SQL
 fi
 
+write_log "Scanning source directory..."
 find "$SOURCE_DIR" -type f -printf "%p|%T@|%s\n" > "$DB_DIR/current_files.txt"
+FILE_COUNT=$(wc -l < "$DB_DIR/current_files.txt" | tr -d ' ')
+write_log "Scan complete: $FILE_COUNT files indexed"
 CURRENT_TIMESTAMP=$(date +%s)
 
 RELATIVE_SQL_CHANGED="SELECT ltrim(substr(fn.path, length('$SOURCE_DIR') + 1), '/') AS path FROM files_new fn LEFT JOIN files f ON fn.path = f.path WHERE f.path IS NULL OR fn.mtime > COALESCE(f.mtime, 0);"
@@ -153,6 +208,7 @@ $RELATIVE_SQL_DELETED
 SQL
 
 # ── Ensure remote destination exists ─────────────────────────────────────────
+write_log "Checking remote destination..."
 if ! rclone lsd "$REMOTE_PATH" >/dev/null 2>&1; then
     write_log "Creating remote folder: $REMOTE_PATH"
     if ! rclone mkdir "$REMOTE_PATH" 2>"$STDERR_FILE"; then
@@ -161,46 +217,44 @@ if ! rclone lsd "$REMOTE_PATH" >/dev/null 2>&1; then
         rm -f "$STDERR_FILE"
         exit 1
     fi
+    write_log "Remote folder created: $REMOTE_PATH"
+else
+    write_log "Remote folder exists: $REMOTE_PATH"
 fi
 
-NEW_CHANGED_COUNT=$(wc -l < "$DB_DIR/changed_files.txt" 2>/dev/null || echo 0)
-DELETED_COUNT=$(wc -l < "$DB_DIR/deleted_files.txt" 2>/dev/null || echo 0)
+NEW_CHANGED_COUNT=$(wc -l < "$DB_DIR/changed_files.txt" 2>/dev/null | tr -d ' ')
+DELETED_COUNT=$(wc -l < "$DB_DIR/deleted_files.txt" 2>/dev/null | tr -d ' ')
+write_log "Diff complete: $NEW_CHANGED_COUNT to upload, $DELETED_COUNT to delete"
 
 # ── Upload changed/new files ──────────────────────────────────────────────────
 if [ -s "$DB_DIR/changed_files.txt" ]; then
-    TEMP_LOG="$LOG_FILE.tmp"
-    if ! rclone sync "$SOURCE_DIR" "$REMOTE_PATH" \
+    write_log "Uploading $NEW_CHANGED_COUNT file(s) to $REMOTE_PATH (rclone stats every 5s)..."
+    if ! run_rclone_logged "$RCLONE_LIVE_LOG" rclone sync "$SOURCE_DIR" "$REMOTE_PATH" \
         --files-from "$DB_DIR/changed_files.txt" \
         --update --local-no-check-updated \
-        --protondrive-replace-existing-draft=true \
-        --log-file="$TEMP_LOG" \
-        --log-format "date,time" \
-        --log-level INFO --stats 0 2>"$STDERR_FILE"; then
-        write_rclone_error "rclone sync failed" "$TEMP_LOG" "$STDERR_FILE"
+        --protondrive-replace-existing-draft=true; then
+        write_rclone_error "rclone sync failed" "$RCLONE_LIVE_LOG" "$STDERR_FILE"
         write_last_run_error "$(rclone_error_summary "$STDERR_FILE" "rclone sync failed")"
-        rm -f "$TEMP_LOG" "$STDERR_FILE"
+        rm -f "$STDERR_FILE"
         exit 1
     fi
-    write_log "$TEMP_LOG"
-    rm -f "$TEMP_LOG"
+    write_log "Upload phase complete"
+    rm -f "$RCLONE_LIVE_LOG" "$STDERR_FILE"
 fi
 
 # ── Delete removed files ──────────────────────────────────────────────────────
 if [ -s "$DB_DIR/deleted_files.txt" ]; then
-    TEMP_LOG="$LOG_FILE.tmp"
-    if ! rclone delete "$REMOTE_PATH" \
+    write_log "Deleting $DELETED_COUNT remote file(s)..."
+    if ! run_rclone_logged "$RCLONE_LIVE_LOG" rclone delete "$REMOTE_PATH" \
         --include-from "$DB_DIR/deleted_files.txt" \
-        --protondrive-replace-existing-draft=true \
-        --log-file="$TEMP_LOG" \
-        --log-format "date,time" \
-        --log-level INFO --stats 0 2>"$STDERR_FILE"; then
-        write_rclone_error "rclone delete failed" "$TEMP_LOG" "$STDERR_FILE"
+        --protondrive-replace-existing-draft=true; then
+        write_rclone_error "rclone delete failed" "$RCLONE_LIVE_LOG" "$STDERR_FILE"
         write_last_run_error "$(rclone_error_summary "$STDERR_FILE" "rclone delete failed")"
-        rm -f "$TEMP_LOG" "$STDERR_FILE"
+        rm -f "$STDERR_FILE"
         exit 1
     fi
-    write_log "$TEMP_LOG"
-    rm -f "$TEMP_LOG"
+    write_log "Delete phase complete"
+    rm -f "$RCLONE_LIVE_LOG" "$STDERR_FILE"
 fi
 
 # ── Commit file snapshot only after successful upload/delete ─────────────────
@@ -245,14 +299,14 @@ $( [ "$FIRST_RUN" -eq 0 ] && echo "$RELATIVE_SQL_DELETED_FOLDERS" )
 SQL
 
 if [ "$FIRST_RUN" -eq 0 ] && [ -s "$DELETED_FOLDERS_FILE" ]; then
-    TEMP_LOG="$LOG_FILE.tmp"
+    FOLDER_DELETE_COUNT=$(wc -l < "$DELETED_FOLDERS_FILE" | tr -d ' ')
+    write_log "Removing $FOLDER_DELETE_COUNT empty remote folder(s)..."
     while IFS= read -r folder; do
-        rclone rmdir "$REMOTE_PATH/$folder" \
-            --log-file="$TEMP_LOG" \
-            --log-format "date,time" \
-            --log-level INFO --stats 0 2>/dev/null
-        write_log "$TEMP_LOG"
-        rm -f "$TEMP_LOG"
+        write_log "Removing folder: $folder"
+        if ! run_rclone_logged "$RCLONE_LIVE_LOG" rclone rmdir "$REMOTE_PATH/$folder"; then
+            write_log "WARN: could not remove folder $folder (may not be empty)"
+        fi
+        rm -f "$RCLONE_LIVE_LOG"
     done < "$DELETED_FOLDERS_FILE"
 fi
 
