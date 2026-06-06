@@ -20,6 +20,18 @@ STDERR_FILE="$DB_DIR/rclone_stderr.txt"
 RCLONE_LIVE_LOG="$DB_DIR/rclone_live.log"
 RCLONE_STREAM_PID=""
 RCLONE_LOG_ARGS=(--log-format "date,time" --log-level INFO --stats 5s)
+# Proton Drive is rate-limited and can hang with default rclone settings — use conservative transfers + timeouts.
+RCLONE_DRIVE_ARGS=(
+  --transfers 2
+  --checkers 4
+  --retries 5
+  --retries-sleep 10s
+  --timeout 10m
+  --contimeout 60s
+  --low-level-retries 20
+  --protondrive-replace-existing-draft=true
+  --protondrive-enable-caching=false
+)
 
 # Mirror sync.log lines to stderr so `docker logs` matches the web UI Logs view.
 append_log_line() {
@@ -228,11 +240,11 @@ write_log "Diff complete: $NEW_CHANGED_COUNT to upload, $DELETED_COUNT to delete
 
 # ── Upload changed/new files ──────────────────────────────────────────────────
 if [ -s "$DB_DIR/changed_files.txt" ]; then
-    write_log "Uploading $NEW_CHANGED_COUNT file(s) to $REMOTE_PATH (rclone stats every 5s)..."
+    write_log "Uploading $NEW_CHANGED_COUNT file(s) to $REMOTE_PATH (rclone stats every 5s, 10m per-file timeout)..."
     if ! run_rclone_logged "$RCLONE_LIVE_LOG" rclone sync "$SOURCE_DIR" "$REMOTE_PATH" \
         --files-from "$DB_DIR/changed_files.txt" \
         --update --local-no-check-updated \
-        --protondrive-replace-existing-draft=true; then
+        "${RCLONE_DRIVE_ARGS[@]}"; then
         write_rclone_error "rclone sync failed" "$RCLONE_LIVE_LOG" "$STDERR_FILE"
         write_last_run_error "$(rclone_error_summary "$STDERR_FILE" "rclone sync failed")"
         rm -f "$STDERR_FILE"
@@ -247,7 +259,7 @@ if [ -s "$DB_DIR/deleted_files.txt" ]; then
     write_log "Deleting $DELETED_COUNT remote file(s)..."
     if ! run_rclone_logged "$RCLONE_LIVE_LOG" rclone delete "$REMOTE_PATH" \
         --include-from "$DB_DIR/deleted_files.txt" \
-        --protondrive-replace-existing-draft=true; then
+        "${RCLONE_DRIVE_ARGS[@]}"; then
         write_rclone_error "rclone delete failed" "$RCLONE_LIVE_LOG" "$STDERR_FILE"
         write_last_run_error "$(rclone_error_summary "$STDERR_FILE" "rclone delete failed")"
         rm -f "$STDERR_FILE"

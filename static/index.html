@@ -1920,6 +1920,13 @@ function inferActiveSyncJobsFromLogs(lines) {
     const m = line.match(/\[([^\]]+)\] Sync started/);
     if (m && !names.includes(m[1])) names.push(m[1]);
   }
+  // Sync started may scroll out when rclone floods the log — infer from [JobName] prefixes.
+  if (!names.length) {
+    for (const line of recent) {
+      const m = line.match(/ - \[([^\]]+)\] /);
+      if (m && !names.includes(m[1])) names.push(m[1]);
+    }
+  }
   return names;
 }
 
@@ -1939,6 +1946,10 @@ function parseLiveSyncProgress(lines) {
     const completed = line.match(/\[([^\]]+)\] Sync completed/);
     if (started && jobMap[started[1]]) jobMap[started[1]] = { name: started[1], status: 'running' };
     if (completed && jobMap[completed[1]]) jobMap[completed[1]] = { name: completed[1], status: 'done' };
+    const bracket = line.match(/ - \[([^\]]+)\] /);
+    if (bracket && jobMap[bracket[1]] && /Transferring:|Transferred:|Uploading |Scan complete|Copied \(/.test(line)) {
+      jobMap[bracket[1]].status = 'running';
+    }
     if (/ERROR|failed/i.test(line)) {
       const m = line.match(/\[([^\]]+)\]/);
       if (m && jobMap[m[1]]) jobMap[m[1]].status = 'error';
@@ -1964,7 +1975,7 @@ function renderSyncJobProgress(jobs) {
 async function updateSyncProgressPanel() {
   if (!state.running) return;
   try {
-    const d = await api('/logs?lines=400');
+    const d = await api('/logs?lines=1500');
     const { jobs, recentLines, transferStats } = parseLiveSyncProgress(d.lines || []);
     const done = jobs.filter(j => j.status === 'done').length;
     const running = jobs.find(j => j.status === 'running');
